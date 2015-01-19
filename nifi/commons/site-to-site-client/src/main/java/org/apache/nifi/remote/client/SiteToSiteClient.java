@@ -14,9 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.nifi.cluster;
+package org.apache.nifi.remote.client;
 
-public interface NodeInformant {
+import java.io.IOException;
 
-    ClusterNodeInformation getNodeInformation();
+public interface SiteToSiteClient {
+
+	void send(DataPacket dataPacket) throws IOException;
+	
+	DataPacket receive() throws IOException;
+	
 }

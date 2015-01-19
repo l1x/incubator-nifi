@@ -27,7 +27,6 @@ import org.apache.nifi.controller.exception.CommunicationsException;
 import org.apache.nifi.events.EventReporter;
 import org.apache.nifi.remote.PeerStatus;
 import org.apache.nifi.remote.RemoteGroupPort;
-import org.apache.nifi.remote.protocol.CommunicationsSession;
 
 public interface RemoteProcessGroup {
 
@@ -211,11 +210,6 @@ public interface RemoteProcessGroup {
      */
     void removeNonExistentPort(final RemoteGroupPort port);
 
-    /**
-     *
-     * @return @throws IOException
-     */
-    CommunicationsSession establishSiteToSiteConnection() throws IOException;
 
     /**
      * Called whenever RemoteProcessGroup is removed from the flow, so that any

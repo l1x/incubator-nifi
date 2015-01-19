@@ -38,8 +38,8 @@ import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.remote.Peer;
 import org.apache.nifi.remote.PeerStatus;
-import org.apache.nifi.remote.RemoteGroupPort;
-import org.apache.nifi.remote.RemoteResourceFactory;
+import org.apache.nifi.remote.RemoteDestination;
+import org.apache.nifi.remote.RemoteResourceInitiator;
 import org.apache.nifi.remote.StandardVersionNegotiator;
 import org.apache.nifi.remote.VersionNegotiator;
 import org.apache.nifi.remote.codec.FlowFileCodec;
@@ -53,7 +53,6 @@ import org.apache.nifi.remote.protocol.CommunicationsSession;
 import org.apache.nifi.remote.protocol.RequestType;
 import org.apache.nifi.util.FormatUtils;
 import org.apache.nifi.util.StopWatch;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +60,7 @@ public class SocketClientProtocol implements ClientProtocol {
     private final VersionNegotiator versionNegotiator = new StandardVersionNegotiator(4, 3, 2, 1);
 
     
-    private RemoteGroupPort port;
+    private RemoteDestination destination;
     private boolean useCompression;
     
     private String commsIdentifier;
@@ -78,13 +77,18 @@ public class SocketClientProtocol implements ClientProtocol {
     public SocketClientProtocol() {
     }
 
-    public void setPort(final RemoteGroupPort port) {
-        this.port = port;
-        this.useCompression = port.isUseCompression();
+    public void setDestination(final RemoteDestination destination) {
+        this.destination = destination;
+        this.useCompression = destination.isUseCompression();
     }
+    
     
     @Override
     public void handshake(final Peer peer) throws IOException, HandshakeException {
+    	handshake(peer, destination.getIdentifier(), (int) destination.getCommunicationsTimeout(TimeUnit.MILLISECONDS));
+    }
+    
+    public void handshake(final Peer peer, final String destinationId, final int timeoutMillis) throws IOException, HandshakeException {
         if ( handshakeComplete ) {
             throw new IllegalStateException("Handshake has already been completed");
         }
@@ -93,12 +97,15 @@ public class SocketClientProtocol implements ClientProtocol {
         
         final Map<HandshakeProperty, String> properties = new HashMap<>();
         properties.put(HandshakeProperty.GZIP, String.valueOf(useCompression));
-        properties.put(HandshakeProperty.PORT_IDENTIFIER, port.getIdentifier());
-        properties.put(HandshakeProperty.REQUEST_EXPIRATION_MILLIS, String.valueOf(
-            port.getRemoteProcessGroup().getCommunicationsTimeout(TimeUnit.MILLISECONDS)) );
+        
+        if ( destinationId != null ) {
+        	properties.put(HandshakeProperty.PORT_IDENTIFIER, destination.getIdentifier());
+        }
+        
+        properties.put(HandshakeProperty.REQUEST_EXPIRATION_MILLIS, String.valueOf(timeoutMillis) );
         
         final CommunicationsSession commsSession = peer.getCommunicationsSession();
-        commsSession.setTimeout(port.getRemoteProcessGroup().getCommunicationsTimeout(TimeUnit.MILLISECONDS));
+        commsSession.setTimeout((int) destination.getCommunicationsTimeout(TimeUnit.MILLISECONDS));
         final DataInputStream dis = new DataInputStream(commsSession.getInput().getInputStream());
         final DataOutputStream dos = new DataOutputStream(commsSession.getOutput().getOutputStream());
         
@@ -213,7 +220,7 @@ public class SocketClientProtocol implements ClientProtocol {
         
         FlowFileCodec codec = new StandardFlowFileCodec();
         try {
-            codec = (FlowFileCodec) RemoteResourceFactory.initiateResourceNegotiation(codec, dis, dos);
+            codec = (FlowFileCodec) RemoteResourceInitiator.initiateResourceNegotiation(codec, dis, dos);
         } catch (HandshakeException e) {
             throw new ProtocolException(e.toString());
         }
@@ -463,7 +470,7 @@ public class SocketClientProtocol implements ClientProtocol {
         
         logger.debug("{} Received {} from {}", this, transactionResponse, peer);
         if ( transactionResponse.getCode() == ResponseCode.TRANSACTION_FINISHED_BUT_DESTINATION_FULL ) {
-            peer.penalize(port.getYieldPeriod(TimeUnit.MILLISECONDS));
+            peer.penalize(destination.getYieldPeriod(TimeUnit.MILLISECONDS));
         } else if ( transactionResponse.getCode() != ResponseCode.TRANSACTION_FINISHED ) {
             throw new ProtocolException("After sending data, expected TRANSACTION_FINISHED response but got " + transactionResponse);
         }

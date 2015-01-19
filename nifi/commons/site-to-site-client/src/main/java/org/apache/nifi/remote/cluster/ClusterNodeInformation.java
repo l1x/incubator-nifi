@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.nifi.cluster;
+package org.apache.nifi.remote.cluster;
 
 import java.io.InputStream;
 import java.io.OutputStream;

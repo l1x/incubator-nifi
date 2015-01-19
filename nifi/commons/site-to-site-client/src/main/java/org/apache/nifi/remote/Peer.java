@@ -25,23 +25,29 @@ public class Peer {
 
     private final CommunicationsSession commsSession;
     private final String url;
+    private final String clusterUrl;
     private final String host;
     private long penalizationExpiration = 0L;
     private boolean closed = false;
 
-    public Peer(final CommunicationsSession commsSession, final String url) {
+    public Peer(final CommunicationsSession commsSession, final String peerUrl, final String clusterUrl) {
         this.commsSession = commsSession;
-        this.url = url;
+        this.url = peerUrl;
+        this.clusterUrl = clusterUrl;
 
         try {
-            this.host = new URI(url).getHost();
+            this.host = new URI(peerUrl).getHost();
         } catch (final Exception e) {
-            throw new IllegalArgumentException("Invalid URL: " + url);
+            throw new IllegalArgumentException("Invalid URL: " + peerUrl);
         }
     }
 
     public String getUrl() {
         return url;
+    }
+    
+    public String getClusterUrl() {
+    	return clusterUrl;
     }
 
     public CommunicationsSession getCommunicationsSession() {

@@ -14,9 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.nifi.cluster;
+package org.apache.nifi.remote.cluster;
 
 import javax.xml.bind.annotation.adapters.XmlAdapter;
+
+import org.apache.nifi.remote.cluster.NodeInformation;
 
 public class NodeInformationAdapter extends XmlAdapter<AdaptedNodeInformation, NodeInformation> {
 

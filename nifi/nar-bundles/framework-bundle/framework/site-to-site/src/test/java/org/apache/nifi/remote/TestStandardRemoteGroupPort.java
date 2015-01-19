@@ -18,14 +18,14 @@ package org.apache.nifi.remote;
 
 import org.apache.nifi.remote.StandardRemoteGroupPort;
 import org.apache.nifi.remote.PeerStatus;
+import org.apache.nifi.remote.cluster.ClusterNodeInformation;
+import org.apache.nifi.remote.cluster.NodeInformation;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.nifi.cluster.ClusterNodeInformation;
-import org.apache.nifi.cluster.NodeInformation;
 import org.apache.nifi.connectable.ConnectableType;
-
 import org.junit.Test;
 
 public class TestStandardRemoteGroupPort {
