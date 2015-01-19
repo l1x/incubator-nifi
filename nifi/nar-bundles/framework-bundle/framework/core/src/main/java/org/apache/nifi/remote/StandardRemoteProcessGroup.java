@@ -175,6 +175,8 @@ public class StandardRemoteProcessGroup implements RemoteProcessGroup {
             }
         };
 
+        endpointConnectionPool = new EndpointConnectionStatePool(sslContext, eventReporter, getPeerPersistenceFile());
+        
         final Runnable socketCleanup = new Runnable() {
             @Override
             public void run() {
@@ -187,13 +189,9 @@ public class StandardRemoteProcessGroup implements RemoteProcessGroup {
                     readLock.unlock();
                 }
 
-                for (final StandardRemoteGroupPort port : ports) {
-                    port.cleanupSockets();
-                }
+                endpointConnectionPool.cleanupExpiredSockets();
             }
         };
-
-        endpointConnectionPool = new EndpointConnectionStatePool(sslContext, eventReporter, getPeerPersistenceFile());
 
         final Runnable refreshPeers = new Runnable() {
             @Override
@@ -240,6 +238,7 @@ public class StandardRemoteProcessGroup implements RemoteProcessGroup {
     @Override
     public void shutdown() {
         backgroundThreadExecutor.shutdown();
+        endpointConnectionPool.shutdown();
     }
     
     @Override
@@ -1291,6 +1290,11 @@ public class StandardRemoteProcessGroup implements RemoteProcessGroup {
     @Override
     public String getYieldDuration() {
         return yieldDuration;
+    }
+    
+    @Override
+    public EndpointConnectionStatePool getConnectionPool() {
+        return endpointConnectionPool;
     }
 
     @Override

@@ -59,7 +59,6 @@ import org.slf4j.LoggerFactory;
 public class SocketClientProtocol implements ClientProtocol {
     private final VersionNegotiator versionNegotiator = new StandardVersionNegotiator(4, 3, 2, 1);
 
-    
     private RemoteDestination destination;
     private boolean useCompression;
     
@@ -105,7 +104,7 @@ public class SocketClientProtocol implements ClientProtocol {
         properties.put(HandshakeProperty.REQUEST_EXPIRATION_MILLIS, String.valueOf(timeoutMillis) );
         
         final CommunicationsSession commsSession = peer.getCommunicationsSession();
-        commsSession.setTimeout((int) destination.getCommunicationsTimeout(TimeUnit.MILLISECONDS));
+        commsSession.setTimeout(timeoutMillis);
         final DataInputStream dis = new DataInputStream(commsSession.getInput().getInputStream());
         final DataOutputStream dos = new DataOutputStream(commsSession.getOutput().getOutputStream());
         

@@ -14,21 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.nifi.remote;
-
-import org.apache.nifi.remote.StandardRemoteGroupPort;
-import org.apache.nifi.remote.PeerStatus;
-import org.apache.nifi.remote.cluster.ClusterNodeInformation;
-import org.apache.nifi.remote.cluster.NodeInformation;
+package org.apache.nifi.remote.client.socket;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.nifi.connectable.ConnectableType;
+import org.apache.nifi.remote.PeerStatus;
+import org.apache.nifi.remote.TransferDirection;
+import org.apache.nifi.remote.cluster.ClusterNodeInformation;
+import org.apache.nifi.remote.cluster.NodeInformation;
 import org.junit.Test;
 
-public class TestStandardRemoteGroupPort {
+public class TestEndpointConnectionStatePool {
 
     @Test
     public void testFormulateDestinationListForOutput() throws IOException {
@@ -41,7 +39,7 @@ public class TestStandardRemoteGroupPort {
         collection.add(new NodeInformation("ShouldGetMedium", 5, 5555, true, 4096));
 
         clusterNodeInfo.setNodeInformation(collection);
-        final List<PeerStatus> destinations = StandardRemoteGroupPort.formulateDestinationList(clusterNodeInfo, ConnectableType.REMOTE_OUTPUT_PORT);
+        final List<PeerStatus> destinations = EndpointConnectionStatePool.formulateDestinationList(clusterNodeInfo, TransferDirection.SEND);
         for ( final PeerStatus peerStatus : destinations ) {
             System.out.println(peerStatus.getHostname() + ":" + peerStatus.getPort());
         }
@@ -55,7 +53,7 @@ public class TestStandardRemoteGroupPort {
         collection.add(new NodeInformation("ShouldGetLots", 2, 2222, true, 50000));
 
         clusterNodeInfo.setNodeInformation(collection);
-        final List<PeerStatus> destinations = StandardRemoteGroupPort.formulateDestinationList(clusterNodeInfo, ConnectableType.REMOTE_OUTPUT_PORT);
+        final List<PeerStatus> destinations = EndpointConnectionStatePool.formulateDestinationList(clusterNodeInfo, TransferDirection.SEND);
         for ( final PeerStatus peerStatus : destinations ) {
             System.out.println(peerStatus.getHostname() + ":" + peerStatus.getPort());
         }
@@ -75,7 +73,7 @@ public class TestStandardRemoteGroupPort {
         collection.add(new NodeInformation("ShouldGetMedium", 5, 5555, true, 4096));
 
         clusterNodeInfo.setNodeInformation(collection);
-        final List<PeerStatus> destinations = StandardRemoteGroupPort.formulateDestinationList(clusterNodeInfo, ConnectableType.REMOTE_INPUT_PORT);
+        final List<PeerStatus> destinations = EndpointConnectionStatePool.formulateDestinationList(clusterNodeInfo, TransferDirection.SEND);
         for ( final PeerStatus peerStatus : destinations ) {
             System.out.println(peerStatus.getHostname() + ":" + peerStatus.getPort());
         }
@@ -89,7 +87,7 @@ public class TestStandardRemoteGroupPort {
         collection.add(new NodeInformation("ShouldGetLittle", 2, 2222, true, 50000));
 
         clusterNodeInfo.setNodeInformation(collection);
-        final List<PeerStatus> destinations = StandardRemoteGroupPort.formulateDestinationList(clusterNodeInfo, ConnectableType.REMOTE_INPUT_PORT);
+        final List<PeerStatus> destinations = EndpointConnectionStatePool.formulateDestinationList(clusterNodeInfo, TransferDirection.SEND);
         for ( final PeerStatus peerStatus : destinations ) {
             System.out.println(peerStatus.getHostname() + ":" + peerStatus.getPort());
         }

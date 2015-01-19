@@ -16,34 +16,18 @@
  */
 package org.apache.nifi.remote;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.net.ssl.SSLContext;
-import javax.security.cert.CertificateExpiredException;
-import javax.security.cert.CertificateNotYetValidException;
 
 import org.apache.nifi.components.ValidationResult;
 import org.apache.nifi.connectable.ConnectableType;
@@ -57,28 +41,19 @@ import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.remote.client.socket.EndpointConnectionState;
 import org.apache.nifi.remote.client.socket.EndpointConnectionStatePool;
-import org.apache.nifi.remote.cluster.ClusterNodeInformation;
-import org.apache.nifi.remote.cluster.NodeInformation;
 import org.apache.nifi.remote.codec.FlowFileCodec;
-import org.apache.nifi.remote.exception.BadRequestException;
 import org.apache.nifi.remote.exception.HandshakeException;
 import org.apache.nifi.remote.exception.PortNotRunningException;
 import org.apache.nifi.remote.exception.ProtocolException;
 import org.apache.nifi.remote.exception.TransmissionDisabledException;
 import org.apache.nifi.remote.exception.UnknownPortException;
-import org.apache.nifi.remote.io.socket.SocketChannelCommunicationsSession;
-import org.apache.nifi.remote.io.socket.ssl.SSLSocketChannel;
-import org.apache.nifi.remote.io.socket.ssl.SSLSocketChannelCommunicationsSession;
 import org.apache.nifi.remote.protocol.ClientProtocol;
 import org.apache.nifi.remote.protocol.CommunicationsSession;
 import org.apache.nifi.remote.protocol.socket.SocketClientProtocol;
 import org.apache.nifi.reporting.Severity;
 import org.apache.nifi.scheduling.SchedulingStrategy;
-import org.apache.nifi.util.NiFiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.sun.jersey.api.client.ClientHandlerException;
 
 public class StandardRemoteGroupPort extends RemoteGroupPort {
     public static final String USER_AGENT = "NiFi-Site-to-Site";
@@ -112,14 +87,7 @@ public class StandardRemoteGroupPort extends RemoteGroupPort {
         this.transferDirection = direction;
         setScheduldingPeriod(MINIMUM_SCHEDULING_NANOS + " nanos");
         
-        final File stateDir = NiFiProperties.getInstance().getPersistentStateDirectory();
-        final File persistenceFile = new File(stateDir, remoteGroup.getIdentifier() + ".peers");
-        
-        // TODO: This should really be constructed in the RemoteProcessGroup and made available to all ports in
-        // that remote process group. This prevents too many connections from being made and also protects the persistenceFile
-        // so that only a single thread will ever attempt to write to the file at once.
-        FIXME();
-        connectionStatePool = new EndpointConnectionStatePool(sslContext, remoteGroup.getEventReporter(), persistenceFile);
+        connectionStatePool = remoteGroup.getConnectionPool();
     }
     
     @Override
@@ -145,8 +113,6 @@ public class StandardRemoteGroupPort extends RemoteGroupPort {
         } finally {
             interruptLock.unlock();
         }
-
-    	connectionStatePool.shutdown();
     }
     
     @Override
@@ -159,11 +125,6 @@ public class StandardRemoteGroupPort extends RemoteGroupPort {
         } finally {
             interruptLock.unlock();
         }
-    }
-    
-    
-    void cleanupSockets() {
-        connectionStatePool.cleanupExpiredSockets();
     }
     
     

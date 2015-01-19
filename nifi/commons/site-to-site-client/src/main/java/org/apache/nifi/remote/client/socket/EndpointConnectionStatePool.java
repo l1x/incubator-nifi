@@ -518,10 +518,6 @@ public class EndpointConnectionStatePool {
     }
     
     
-//    private List<PeerStatus> formulateDestinationList(final ClusterNodeInformation clusterNodeInfo) throws IOException {
-//        return formulateDestinationList(clusterNodeInfo, getConnectableType());
-//    }
-    
     static List<PeerStatus> formulateDestinationList(final ClusterNodeInformation clusterNodeInfo, final TransferDirection direction) {
         final Collection<NodeInformation> nodeInfoSet = clusterNodeInfo.getNodeInformation();
         final int numDestinations = Math.max(128, nodeInfoSet.size());
