@@ -17,7 +17,6 @@
 package org.apache.nifi.remote;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -33,7 +32,6 @@ import org.apache.nifi.components.ValidationResult;
 import org.apache.nifi.connectable.ConnectableType;
 import org.apache.nifi.connectable.Connection;
 import org.apache.nifi.controller.ProcessScheduler;
-import org.apache.nifi.controller.exception.CommunicationsException;
 import org.apache.nifi.groups.ProcessGroup;
 import org.apache.nifi.groups.RemoteProcessGroup;
 import org.apache.nifi.processor.ProcessContext;
@@ -144,7 +142,7 @@ public class StandardRemoteGroupPort extends RemoteGroupPort {
         
         final EndpointConnectionState connectionState;
         try {
-        	connectionState = connectionStatePool.getEndpointConnectionState(url, this, transferDirection);
+        	connectionState = connectionStatePool.getEndpointConnectionState(this, transferDirection);
         } catch (final PortNotRunningException e) {
             context.yield();
             this.targetRunning.set(false);
@@ -366,28 +364,4 @@ public class StandardRemoteGroupPort extends RemoteGroupPort {
     public boolean isSideEffectFree() {
         return false;
     }
-
-	@Override
-	public String getDescription() {
-		return toString();
-	}
-
-	@Override
-	public long getCommunicationsTimeout(final TimeUnit timeUnit) {
-		return getRemoteProcessGroup().getCommunicationsTimeout(timeUnit);
-	}
-
-	@Override
-	public URI getTargetUri() {
-		return remoteGroup.getTargetUri();
-	}
-	
-	@Override
-	public boolean isSecure() {
-		try {
-			return remoteGroup.isSecure();
-		} catch (final CommunicationsException ce) {
-			return false;
-		}
-	}
 }

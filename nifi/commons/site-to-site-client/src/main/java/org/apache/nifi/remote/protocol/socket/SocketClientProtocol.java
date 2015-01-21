@@ -41,7 +41,9 @@ import org.apache.nifi.remote.PeerStatus;
 import org.apache.nifi.remote.RemoteDestination;
 import org.apache.nifi.remote.RemoteResourceInitiator;
 import org.apache.nifi.remote.StandardVersionNegotiator;
+import org.apache.nifi.remote.TransferDirection;
 import org.apache.nifi.remote.VersionNegotiator;
+import org.apache.nifi.remote.client.Transaction;
 import org.apache.nifi.remote.codec.FlowFileCodec;
 import org.apache.nifi.remote.codec.StandardFlowFileCodec;
 import org.apache.nifi.remote.exception.HandshakeException;
@@ -50,6 +52,7 @@ import org.apache.nifi.remote.io.CompressionInputStream;
 import org.apache.nifi.remote.io.CompressionOutputStream;
 import org.apache.nifi.remote.protocol.ClientProtocol;
 import org.apache.nifi.remote.protocol.CommunicationsSession;
+import org.apache.nifi.remote.protocol.DataPacket;
 import org.apache.nifi.remote.protocol.RequestType;
 import org.apache.nifi.util.FormatUtils;
 import org.apache.nifi.util.StopWatch;
@@ -60,7 +63,7 @@ public class SocketClientProtocol implements ClientProtocol {
     private final VersionNegotiator versionNegotiator = new StandardVersionNegotiator(4, 3, 2, 1);
 
     private RemoteDestination destination;
-    private boolean useCompression;
+    private boolean useCompression = false;
     
     private String commsIdentifier;
     private boolean handshakeComplete = false;
@@ -70,6 +73,7 @@ public class SocketClientProtocol implements ClientProtocol {
     private Response handshakeResponse = null;
     private boolean readyForFileTransfer = false;
     private String transitUriPrefix = null;
+    private int timeoutMillis = 30000;
     
     private static final long BATCH_SEND_NANOS = TimeUnit.SECONDS.toNanos(5L); // send batches of up to 5 seconds
     
@@ -81,13 +85,16 @@ public class SocketClientProtocol implements ClientProtocol {
         this.useCompression = destination.isUseCompression();
     }
     
+    public void setTimeout(final int timeoutMillis) {
+    	this.timeoutMillis = timeoutMillis;
+    }
     
     @Override
     public void handshake(final Peer peer) throws IOException, HandshakeException {
-    	handshake(peer, destination.getIdentifier(), (int) destination.getCommunicationsTimeout(TimeUnit.MILLISECONDS));
+    	handshake(peer, destination.getIdentifier());
     }
     
-    public void handshake(final Peer peer, final String destinationId, final int timeoutMillis) throws IOException, HandshakeException {
+    public void handshake(final Peer peer, final String destinationId) throws IOException, HandshakeException {
         if ( handshakeComplete ) {
             throw new IllegalStateException("Handshake has already been completed");
         }
@@ -228,6 +235,65 @@ public class SocketClientProtocol implements ClientProtocol {
         return codec;
     }
 
+
+    // TODO: move up to top with member variables
+    private SocketClientTransaction transaction;
+    
+    @Override
+    public void startTransaction(final Peer peer, final TransferDirection direction) throws IOException {
+        if ( !handshakeComplete ) {
+            throw new IllegalStateException("Handshake has not been performed");
+        }
+        if ( !readyForFileTransfer ) {
+            throw new IllegalStateException("Cannot start transaction; handshake resolution was " + handshakeResponse);
+        }
+        
+        transaction = new SocketClientTransaction(peer, direction, useCompression);
+
+        final DataOutputStream dos = transaction.getDataOutputStream();
+        if ( direction == TransferDirection.RECEIVE ) {
+            // Indicate that we would like to have some data
+            RequestType.RECEIVE_FLOWFILES.writeRequestType(dos);
+            dos.flush();
+        } else {
+            // Indicate that we would like to have some data
+            RequestType.SEND_FLOWFILES.writeRequestType(dos);
+            dos.flush();
+        }
+    }
+    
+    @Override
+    public DataPacket receiveData(final FlowFileCodec codec) throws IOException, ProtocolException {
+    	if ( transaction == null ) {
+    		throw new IllegalStateException("Cannot receive data because no transaction has been started");
+    	}
+    	
+    	final Peer peer = transaction.getPeer();
+        logger.debug("{} Receiving FlowFiles from {}", this, peer);
+        final CommunicationsSession commsSession = peer.getCommunicationsSession();
+        final DataInputStream dis = new DataInputStream(commsSession.getInput().getInputStream());
+        final DataOutputStream dos = new DataOutputStream(commsSession.getOutput().getOutputStream());
+        String userDn = commsSession.getUserDn();
+        if ( userDn == null ) {
+            userDn = "none";
+        }
+        
+        // Determine if Peer will send us data or has no data to send us
+        final Response dataAvailableCode = Response.read(dis);
+        switch (dataAvailableCode.getCode()) {
+            case MORE_DATA:
+                logger.debug("{} {} Indicates that data is available", this, peer);
+                break;
+            case NO_MORE_DATA:
+                logger.debug("{} No data available from {}", peer);
+                return null;
+            default:
+                throw new ProtocolException("Got unexpected response when asking for data: " + dataAvailableCode);
+        }
+        
+        
+    }
+    
     
     @Override
     public void receiveFlowFiles(final Peer peer, final ProcessContext context, final ProcessSession session, final FlowFileCodec codec) throws IOException, ProtocolException {
@@ -258,6 +324,7 @@ public class SocketClientProtocol implements ClientProtocol {
                 logger.debug("{} {} Indicates that data is available", this, peer);
                 break;
             case NO_MORE_DATA:
+            	context.yield();
                 logger.debug("{} No data available from {}", peer);
                 return;
             default:

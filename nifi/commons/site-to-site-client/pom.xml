@@ -21,6 +21,19 @@
   		<groupId>org.apache.nifi</groupId>
   		<artifactId>nifi-utils</artifactId>
   	</dependency>
+	<dependency>
+		<groupId>com.sun.jersey</groupId>
+		<artifactId>jersey-client</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.apache.nifi</groupId>
+		<artifactId>client-dto</artifactId>
+		<version>0.0.1-incubating-SNAPSHOT</version>
+	</dependency>
+  	<dependency>
+  		<groupId>org.apache.nifi</groupId>
+  		<artifactId>nifi-web-utils</artifactId>
+  	</dependency>
   	
     <dependency>
       <groupId>junit</groupId>

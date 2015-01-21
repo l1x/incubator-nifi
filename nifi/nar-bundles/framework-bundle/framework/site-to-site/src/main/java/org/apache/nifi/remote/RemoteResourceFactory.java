@@ -56,6 +56,14 @@ public class RemoteResourceFactory extends RemoteResourceInitiator {
         }
 	}
 	
+	public static void rejectCodecNegotiation(final DataInputStream dis, final DataOutputStream dos, final String explanation) throws IOException {
+		dis.readUTF();	// read codec name
+		dis.readInt();	// read codec version
+		
+		dos.write(ABORT);
+		dos.writeUTF(explanation);
+		dos.flush();
+	}
 	
 	@SuppressWarnings("unchecked")
     public static <T extends ClientProtocol> T receiveClientProtocolNegotiation(final DataInputStream dis, final DataOutputStream dos) throws IOException, HandshakeException {

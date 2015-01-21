@@ -14,17 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.nifi.remote.client;
+package org.apache.nifi.remote.protocol;
 
-import java.io.Closeable;
-import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
 
-import org.apache.nifi.remote.protocol.DataPacket;
+public interface DataPacket {
 
-public interface SiteToSiteClient extends Closeable {
-
-	void send(DataPacket dataPacket) throws IOException;
+	Map<String, String> getAttributes();
 	
-	DataPacket receive() throws IOException;
+	InputStream getData();
 	
+	long getSize();
 }

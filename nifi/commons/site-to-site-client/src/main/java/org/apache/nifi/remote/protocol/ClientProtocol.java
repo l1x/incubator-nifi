@@ -23,6 +23,7 @@ import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.remote.Peer;
 import org.apache.nifi.remote.PeerStatus;
+import org.apache.nifi.remote.TransferDirection;
 import org.apache.nifi.remote.VersionedRemoteResource;
 import org.apache.nifi.remote.codec.FlowFileCodec;
 import org.apache.nifi.remote.exception.HandshakeException;
@@ -46,6 +47,20 @@ public interface ClientProtocol extends VersionedRemoteResource {
 
     boolean isReadyForFileTransfer();
 
+    
+    
+    
+    void startTransaction(Peer peer, TransferDirection direction) throws IOException;
+    
+    void completeTransaction();
+    
+    void rollbackTransaction();
+    
+    void transferData(Peer peer, DataPacket dataPacket, FlowFileCodec codec) throws IOException, ProtocolException;
+    
+    DataPacket receiveData(Peer peer, FlowFileCodec codec) throws IOException, ProtocolException;
+    
+    
     /**
      * returns <code>true</code> if remote instance indicates that the port is
      * invalid

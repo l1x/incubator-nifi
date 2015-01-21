@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.nifi.controller.util;
+package org.apache.nifi.remote.util;
 
 import java.io.IOException;
 import java.net.URI;
@@ -40,7 +40,7 @@ import com.sun.jersey.core.util.MultivaluedMapImpl;
 /**
  *
  */
-public class RemoteProcessGroupUtils {
+public class RemoteNiFiUtils {
 
     public static final String CONTROLLER_URI_PATH = "/controller";
 
@@ -49,7 +49,7 @@ public class RemoteProcessGroupUtils {
     
     private final Client client;
     
-    public RemoteProcessGroupUtils(final SSLContext sslContext) {
+    public RemoteNiFiUtils(final SSLContext sslContext) {
         this.client = getClient(sslContext);
     }
     
@@ -182,7 +182,7 @@ public class RemoteProcessGroupUtils {
         return getController(uri, timeoutMillis).getId();
     }
     
-    private ControllerDTO getController(final URI uri, final int timeoutMillis) throws IOException {
+    public ControllerDTO getController(final URI uri, final int timeoutMillis) throws IOException {
         final ClientResponse response = get(uri, timeoutMillis);
         
         if (Status.OK.getStatusCode() == response.getStatusInfo().getStatusCode()) {

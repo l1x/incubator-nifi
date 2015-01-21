@@ -16,13 +16,6 @@
  */
 package org.apache.nifi.remote.client;
 
-import java.io.InputStream;
-import java.util.Map;
+public interface Transaction {
 
-public interface DataPacket {
-
-	Map<String, String> getAttributes();
-	
-	InputStream getData();
-	
 }

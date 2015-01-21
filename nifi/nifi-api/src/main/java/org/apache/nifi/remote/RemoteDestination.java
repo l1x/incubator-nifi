@@ -16,20 +16,10 @@
  */
 package org.apache.nifi.remote;
 
-import java.net.URI;
 import java.util.concurrent.TimeUnit;
 
 public interface RemoteDestination {
-
-	String getDescription();
-	
 	String getIdentifier();
-	
-	URI getTargetUri();
-	
-	boolean isSecure();
-	
-	long getCommunicationsTimeout(TimeUnit timeUnit);
 	
 	long getYieldPeriod(TimeUnit timeUnit);
 	
