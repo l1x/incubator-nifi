@@ -19,48 +19,74 @@ package org.apache.nifi.remote.protocol.socket;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
+import java.util.zip.CheckedOutputStream;
 
 import org.apache.nifi.remote.Peer;
 import org.apache.nifi.remote.TransferDirection;
-import org.apache.nifi.remote.client.Transaction;
-import org.apache.nifi.remote.io.CompressionInputStream;
 
-public class SocketClientTransaction implements Transaction {
+public class SocketClientTransaction {
 	private final long startTime = System.nanoTime();
-	private long bytesReceived = 0L;
-	private CRC32 crc = new CRC32();
+	private final CRC32 crc = new CRC32();
 	
 	private final Peer peer;
-	private final TransferDirection direction;
 	
 	private final DataInputStream dis;
 	private final DataOutputStream dos;
-	private final CheckedInputStream checkedInputStream;
+	private final TransferDirection direction;
+	
+	private boolean dataAvailable = false;
+	private int transfers = 0;
 	
 	SocketClientTransaction(final Peer peer, final TransferDirection direction, final boolean useCompression) throws IOException {
 		this.peer = peer;
 		this.direction = direction;
-		
 		this.dis = new DataInputStream(peer.getCommunicationsSession().getInput().getInputStream());
 		this.dos = new DataOutputStream(peer.getCommunicationsSession().getOutput().getOutputStream());
-		
-		final InputStream dataInputStream = useCompression ? new CompressionInputStream(dis) : dis;
-        checkedInputStream = new CheckedInputStream(dataInputStream, crc);
 	}
 	
-	CheckedInputStream getCheckedInputStream() {
-		return checkedInputStream;
+	int getTransferCount() {
+	    return transfers;
+	}
+	
+	void incrementTransferCount() {
+	    transfers++;
+	}
+	
+	void setDataAvailable(final boolean available) {
+	    this.dataAvailable = available;
+	}
+	
+	boolean isDataAvailable() {
+	    return dataAvailable;
+	}
+	
+	TransferDirection getTransferDirection() {
+	    return direction;
 	}
 	
 	DataOutputStream getDataOutputStream() {
 		return dos;
 	}
 	
+	DataInputStream getDataInputStream() {
+	    return dis;
+	}
+	
+	CheckedInputStream createCheckedInputStream() {
+	    return new CheckedInputStream(dis, crc);
+	}
+	
+	CheckedOutputStream createCheckedOutputStream() {
+	    return new CheckedOutputStream(dos, crc);
+	}
+	
 	Peer getPeer() {
 		return peer;
 	}
 	
+	String calculateCRC() {
+	    return String.valueOf(crc.getValue());
+	}
 }

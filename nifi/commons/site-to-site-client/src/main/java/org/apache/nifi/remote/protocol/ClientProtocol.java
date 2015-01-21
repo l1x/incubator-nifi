@@ -50,15 +50,17 @@ public interface ClientProtocol extends VersionedRemoteResource {
     
     
     
-    void startTransaction(Peer peer, TransferDirection direction) throws IOException;
+    void startTransaction(Peer peer, TransferDirection direction) throws IOException, ProtocolException;
     
-    void completeTransaction();
+    void completeTransaction(boolean applyBackPressure) throws IOException, ProtocolException;
     
     void rollbackTransaction();
     
-    void transferData(Peer peer, DataPacket dataPacket, FlowFileCodec codec) throws IOException, ProtocolException;
+    // must be done within a transaction.
+    void transferData(DataPacket dataPacket, FlowFileCodec codec) throws IOException, ProtocolException;
     
-    DataPacket receiveData(Peer peer, FlowFileCodec codec) throws IOException, ProtocolException;
+    // must be done within a transaction.
+    DataPacket receiveData(FlowFileCodec codec) throws IOException, ProtocolException;
     
     
     /**

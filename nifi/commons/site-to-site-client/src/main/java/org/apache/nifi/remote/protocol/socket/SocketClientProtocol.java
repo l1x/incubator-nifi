@@ -36,6 +36,7 @@ import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
+import org.apache.nifi.processor.io.InputStreamCallback;
 import org.apache.nifi.remote.Peer;
 import org.apache.nifi.remote.PeerStatus;
 import org.apache.nifi.remote.RemoteDestination;
@@ -43,7 +44,6 @@ import org.apache.nifi.remote.RemoteResourceInitiator;
 import org.apache.nifi.remote.StandardVersionNegotiator;
 import org.apache.nifi.remote.TransferDirection;
 import org.apache.nifi.remote.VersionNegotiator;
-import org.apache.nifi.remote.client.Transaction;
 import org.apache.nifi.remote.codec.FlowFileCodec;
 import org.apache.nifi.remote.codec.StandardFlowFileCodec;
 import org.apache.nifi.remote.exception.HandshakeException;
@@ -240,7 +240,7 @@ public class SocketClientProtocol implements ClientProtocol {
     private SocketClientTransaction transaction;
     
     @Override
-    public void startTransaction(final Peer peer, final TransferDirection direction) throws IOException {
+    public void startTransaction(final Peer peer, final TransferDirection direction) throws IOException, ProtocolException {
         if ( !handshakeComplete ) {
             throw new IllegalStateException("Handshake has not been performed");
         }
@@ -255,6 +255,21 @@ public class SocketClientProtocol implements ClientProtocol {
             // Indicate that we would like to have some data
             RequestType.RECEIVE_FLOWFILES.writeRequestType(dos);
             dos.flush();
+            
+            final Response dataAvailableCode = Response.read(transaction.getDataInputStream());
+            switch (dataAvailableCode.getCode()) {
+                case MORE_DATA:
+                    logger.debug("{} {} Indicates that data is available", this, peer);
+                    transaction.setDataAvailable(true);
+                    break;
+                case NO_MORE_DATA:
+                    logger.debug("{} No data available from {}", peer);
+                    transaction.setDataAvailable(false);
+                    return;
+                default:
+                    throw new ProtocolException("Got unexpected response when asking for data: " + dataAvailableCode);
+            }
+
         } else {
             // Indicate that we would like to have some data
             RequestType.SEND_FLOWFILES.writeRequestType(dos);
@@ -268,32 +283,178 @@ public class SocketClientProtocol implements ClientProtocol {
     		throw new IllegalStateException("Cannot receive data because no transaction has been started");
     	}
     	
+    	if ( transaction.getTransferDirection() == TransferDirection.SEND ) {
+    	    throw new IllegalStateException("Attempting to receive data but started a SEND Transaction");
+    	}
+
+    	// if no data available, return null
+    	if ( !transaction.isDataAvailable() ) {
+    	    return null;
+    	}
+    	
     	final Peer peer = transaction.getPeer();
-        logger.debug("{} Receiving FlowFiles from {}", this, peer);
-        final CommunicationsSession commsSession = peer.getCommunicationsSession();
-        final DataInputStream dis = new DataInputStream(commsSession.getInput().getInputStream());
-        final DataOutputStream dos = new DataOutputStream(commsSession.getOutput().getOutputStream());
-        String userDn = commsSession.getUserDn();
-        if ( userDn == null ) {
-            userDn = "none";
+        logger.debug("{} Receiving data from {}", this, peer);
+        final DataPacket packet = codec.decode(transaction.createCheckedInputStream());
+        
+        if ( packet != null ) {
+            transaction.incrementTransferCount();
+            
+            // Determine if Peer will send us data or has no data to send us
+            final DataInputStream dis = transaction.getDataInputStream();
+            final Response dataAvailableCode = Response.read(dis);
+            switch (dataAvailableCode.getCode()) {
+                case MORE_DATA:
+                    logger.debug("{} {} Indicates that data is available", this, peer);
+                    transaction.setDataAvailable(true);
+                    break;
+                case NO_MORE_DATA:
+                    logger.debug("{} No data available from {}", peer);
+                    transaction.setDataAvailable(false);
+                    break;
+                default:
+                    throw new ProtocolException("Got unexpected response when asking for data: " + dataAvailableCode);
+            }
         }
         
-        // Determine if Peer will send us data or has no data to send us
-        final Response dataAvailableCode = Response.read(dis);
-        switch (dataAvailableCode.getCode()) {
-            case MORE_DATA:
-                logger.debug("{} {} Indicates that data is available", this, peer);
-                break;
-            case NO_MORE_DATA:
-                logger.debug("{} No data available from {}", peer);
-                return null;
-            default:
-                throw new ProtocolException("Got unexpected response when asking for data: " + dataAvailableCode);
+        return packet;
+    }
+
+    
+    @Override
+    public void transferData(final DataPacket dataPacket, final FlowFileCodec codec) throws IOException, ProtocolException {
+        if ( transaction == null ) {
+            throw new IllegalStateException("Cannot send data because no transaction has been started");
+        }
+
+        if ( transaction.getTransferDirection() == TransferDirection.RECEIVE ) {
+            throw new IllegalStateException("Attempting to send data but started a RECEIVE Transaction");
+        }
+
+        final Peer peer = transaction.getPeer();
+        logger.debug("{} Sending data to {}", this, peer);
+
+        if ( transaction.getTransferCount() > 0 ) {
+            ResponseCode.CONTINUE_TRANSACTION.writeResponse(transaction.getDataOutputStream());
         }
         
+        final CheckedOutputStream checkedOutStream = transaction.createCheckedOutputStream();
+        codec.encode(dataPacket, checkedOutStream);
         
+        // need to close the CompressionOutputStream in order to force it write out any remaining bytes.
+        // Otherwise, do NOT close it because we don't want to close the underlying stream
+        // (CompressionOutputStream will not close the underlying stream when it's closed)
+        if ( useCompression ) {
+            checkedOutStream.close();
+        }
+        
+        transaction.incrementTransferCount();
     }
     
+    
+    @Override
+    public void completeTransaction(final boolean applyBackPressure) throws ProtocolException, IOException {
+        final SocketClientTransaction transaction = this.transaction;
+        this.transaction = null;
+        
+        if ( transaction == null ) {
+            throw new IllegalStateException("Cannot complete transaction because no transaction has been started");
+        }
+        
+        final Peer peer = transaction.getPeer();
+        
+        if ( transaction.getTransferDirection() == TransferDirection.RECEIVE ) {
+            final boolean moreData = transaction.isDataAvailable();
+            if ( moreData ) {
+                throw new IllegalStateException("Cannot complete transaction because the sender has already sent more data than client has consumed.");
+            }
+            
+            // we received a FINISH_TRANSACTION indicator. Send back a CONFIRM_TRANSACTION message
+            // to peer so that we can verify that the connection is still open. This is a two-phase commit,
+            // which helps to prevent the chances of data duplication. Without doing this, we may commit the
+            // session and then when we send the response back to the peer, the peer may have timed out and may not
+            // be listening. As a result, it will re-send the data. By doing this two-phase commit, we narrow the
+            // Critical Section involved in this transaction so that rather than the Critical Section being the
+            // time window involved in the entire transaction, it is reduced to a simple round-trip conversation.
+            logger.trace("{} Sending CONFIRM_TRANSACTION Response Code to {}", this, peer);
+            final String calculatedCRC = transaction.calculateCRC();
+            ResponseCode.CONFIRM_TRANSACTION.writeResponse(transaction.getDataOutputStream(), calculatedCRC);
+            
+            final Response confirmTransactionResponse = Response.read(transaction.getDataInputStream());
+            logger.trace("{} Received {} from {}", this, confirmTransactionResponse, peer);
+            
+            switch (confirmTransactionResponse.getCode()) {
+                case CONFIRM_TRANSACTION:
+                    break;
+                case BAD_CHECKSUM:
+                    throw new IOException(this + " Received a BadChecksum response from peer " + peer);
+                default:
+                    throw new ProtocolException(this + " Received unexpected Response from peer " + peer + " : " + confirmTransactionResponse + "; expected 'Confirm Transaction' Response Code");
+            }
+            
+            if ( applyBackPressure ) {
+                // Confirm that we received the data and the peer can now discard it but that the peer should not
+                // send any more data for a bit
+                logger.debug("{} Sending TRANSACTION_FINISHED_BUT_DESTINATION_FULL to {}", this, peer);
+                ResponseCode.TRANSACTION_FINISHED_BUT_DESTINATION_FULL.writeResponse(transaction.getDataOutputStream());
+            } else {
+                // Confirm that we received the data and the peer can now discard it
+                logger.debug("{} Sending TRANSACTION_FINISHED to {}", this, peer);
+                ResponseCode.TRANSACTION_FINISHED.writeResponse(transaction.getDataOutputStream());
+            }
+        } else {
+            logger.debug("{} Sent FINISH_TRANSACTION indicator to {}", this, peer);
+            ResponseCode.FINISH_TRANSACTION.writeResponse(transaction.getDataOutputStream());
+            
+            final String calculatedCRC = transaction.calculateCRC();
+            
+            // we've sent a FINISH_TRANSACTION. Now we'll wait for the peer to send a 'Confirm Transaction' response
+            final Response transactionConfirmationResponse = Response.read(transaction.getDataInputStream());
+            if ( transactionConfirmationResponse.getCode() == ResponseCode.CONFIRM_TRANSACTION ) {
+                // Confirm checksum and echo back the confirmation.
+                logger.trace("{} Received {} from {}", this, transactionConfirmationResponse, peer);
+                final String receivedCRC = transactionConfirmationResponse.getMessage();
+                
+                if ( versionNegotiator.getVersion() > 3 ) {
+                    if ( !receivedCRC.equals(calculatedCRC) ) {
+                        ResponseCode.BAD_CHECKSUM.writeResponse(transaction.getDataOutputStream());
+                        throw new IOException(this + " Sent data to peer " + peer + " but calculated CRC32 Checksum as " + calculatedCRC + " while peer calculated CRC32 Checksum as " + receivedCRC + "; canceling transaction and rolling back session");
+                    }
+                }
+                
+                ResponseCode.CONFIRM_TRANSACTION.writeResponse(transaction.getDataOutputStream(), "");
+            } else {
+                throw new ProtocolException("Expected to receive 'Confirm Transaction' response from peer " + peer + " but received " + transactionConfirmationResponse);
+            }
+        
+            final Response transactionResponse;
+            try {
+                transactionResponse = Response.read(transaction.getDataInputStream());
+            } catch (final IOException e) {
+                throw new IOException(this + " Failed to receive a response from " + peer + " when expecting a TransactionFinished Indicator. " +
+                        "It is unknown whether or not the peer successfully received/processed the data.", e);
+            }
+            
+            logger.debug("{} Received {} from {}", this, transactionResponse, peer);
+            if ( transactionResponse.getCode() == ResponseCode.TRANSACTION_FINISHED_BUT_DESTINATION_FULL ) {
+                peer.penalize(destination.getYieldPeriod(TimeUnit.MILLISECONDS));
+            } else if ( transactionResponse.getCode() != ResponseCode.TRANSACTION_FINISHED ) {
+                throw new ProtocolException("After sending data, expected TRANSACTION_FINISHED response but got " + transactionResponse);
+            }
+        }
+    }
+    
+    
+    @Override
+    public void rollbackTransaction() {
+        final SocketClientTransaction transaction = this.transaction;
+        this.transaction = null;
+        
+        if ( transaction == null ) {
+            throw new IllegalStateException("Cannot rollback transaction because no transaction has been started");
+        }
+        
+        // TODO: IMPLEMENT
+    }
     
     @Override
     public void receiveFlowFiles(final Peer peer, final ProcessContext context, final ProcessSession session, final FlowFileCodec codec) throws IOException, ProtocolException {
@@ -344,7 +505,12 @@ public class SocketClientProtocol implements ClientProtocol {
             final CheckedInputStream checkedIn = new CheckedInputStream(flowFileInputStream, crc);
             
             final long startNanos = System.nanoTime();
-            FlowFile flowFile = codec.decode(checkedIn, session);
+            
+            final DataPacket dataPacket = codec.decode(checkedIn);
+            FlowFile flowFile = session.create();
+            flowFile = session.importFrom(dataPacket.getData(), flowFile);
+            flowFile = session.putAllAttributes(flowFile, dataPacket.getAttributes());
+            
             final long transmissionNanos = System.nanoTime() - startNanos;
             final long transmissionMillis = TimeUnit.MILLISECONDS.convert(transmissionNanos, TimeUnit.NANOSECONDS);
             
@@ -462,7 +628,33 @@ public class SocketClientProtocol implements ClientProtocol {
             final CheckedOutputStream checkedOutStream = new CheckedOutputStream(flowFileOutputStream, crc);
             
             final long startNanos = System.nanoTime();
-            flowFile = codec.encode(flowFile, session, checkedOutStream);
+            
+            // call codec.encode within a session callback so that we have the InputStream to read the FlowFile
+            final FlowFile toWrap = flowFile;
+            session.read(flowFile, new InputStreamCallback() {
+                @Override
+                public void process(final InputStream in) throws IOException {
+                    final DataPacket dataPacket = new DataPacket() {
+                        @Override
+                        public Map<String, String> getAttributes() {
+                            return toWrap.getAttributes();
+                        }
+
+                        @Override
+                        public InputStream getData() {
+                            return in;
+                        }
+
+                        @Override
+                        public long getSize() {
+                            return toWrap.getSize();
+                        }
+                    };
+                    
+                    codec.encode(dataPacket, checkedOutStream);
+                }
+            });
+            
             final long transferNanos = System.nanoTime() - startNanos;
             final long transferMillis = TimeUnit.MILLISECONDS.convert(transferNanos, TimeUnit.NANOSECONDS);
             

@@ -21,11 +21,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 
-import org.apache.nifi.flowfile.FlowFile;
-import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.remote.VersionedRemoteResource;
 import org.apache.nifi.remote.exception.ProtocolException;
 import org.apache.nifi.remote.exception.TransmissionDisabledException;
+import org.apache.nifi.remote.protocol.DataPacket;
 
 /**
  * <p>
@@ -44,36 +43,29 @@ public interface FlowFileCodec extends VersionedRemoteResource {
     public List<Integer> getSupportedVersions();
 
     /**
-     * Encodes a FlowFile and its content as a single stream of data and writes
-     * that stream to the output. If checksum is not null, it will be calculated
-     * as the stream is read
+     * Encodes a DataPacket and its content as a single stream of data and writes
+     * that stream to the output.
      *
-     * @param flowFile the FlowFile to encode
-     * @param session a session that can be used to transactionally create and
-     * transfer flow files
+     * @param dataPacket the data to serialize
      * @param outStream the stream to write the data to
      *
-     * @return the updated FlowFile
-     *
-     * @throws IOException
+     * @throws IOException if there is a communications issue
+     * @throws TransmissionDisabledException if a user terminates the connection
      */
-    FlowFile encode(FlowFile flowFile, ProcessSession session, OutputStream outStream) throws IOException, TransmissionDisabledException;
+    void encode(DataPacket dataPacket, OutputStream outStream) throws IOException, TransmissionDisabledException;
 
     /**
      * Decodes the contents of the InputStream, interpreting the data to
-     * determine the next FlowFile's attributes and content, as well as their
-     * destinations. If not null, checksum will be used to calculate the
-     * checksum as the data is read.
+     * determine the next DataPacket's attributes and content.
      *
-     * @param stream an InputStream containing FlowFiles' contents, attributes,
-     * and destinations
-     * @param session
+     * @param stream an InputStream containing DataPacket's content and attributes
      *
-     * @return the FlowFile that was created, or <code>null</code> if the stream
+     * @return the DataPacket that was created, or <code>null</code> if the stream
      * was out of data
      *
      * @throws IOException
      * @throws ProtocolException if the input is malformed
+     * @throws TransmissionDisabledException if a user terminates the connection
      */
-    FlowFile decode(InputStream stream, ProcessSession session) throws IOException, ProtocolException, TransmissionDisabledException;
+    DataPacket decode(InputStream stream) throws IOException, ProtocolException, TransmissionDisabledException;
 }
