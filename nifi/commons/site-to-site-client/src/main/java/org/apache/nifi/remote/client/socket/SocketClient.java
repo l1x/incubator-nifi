@@ -32,6 +32,7 @@ import org.apache.nifi.remote.exception.PortNotRunningException;
 import org.apache.nifi.remote.exception.ProtocolException;
 import org.apache.nifi.remote.exception.UnknownPortException;
 import org.apache.nifi.remote.protocol.DataPacket;
+import org.apache.nifi.util.ObjectHolder;
 
 public class SocketClient implements SiteToSiteClient {
 	private final EndpointConnectionStatePool pool;
@@ -102,6 +103,7 @@ public class SocketClient implements SiteToSiteClient {
 		
 		// Wrap the transaction in a new one that will return the EndpointConnectionState back to the pool whenever
 		// the transaction is either completed or canceled.
+		final ObjectHolder<EndpointConnectionState> connectionStateRef = new ObjectHolder<>(connectionState);
 		return new Transaction() {
 			@Override
 			public void confirm() throws IOException {
@@ -109,11 +111,15 @@ public class SocketClient implements SiteToSiteClient {
 			}
 
 			@Override
-			public void complete(final boolean applyBackpressure) throws IOException {
+			public void complete(final boolean requestBackoff) throws IOException {
 				try {
-					transaction.complete(applyBackpressure);
+					transaction.complete(requestBackoff);
 				} finally {
-					pool.offer(connectionState);
+				    final EndpointConnectionState state = connectionStateRef.get();
+				    if ( state != null ) {
+				        pool.offer(connectionState);
+				        connectionStateRef.set(null);
+				    }
 				}
 			}
 
@@ -122,10 +128,27 @@ public class SocketClient implements SiteToSiteClient {
 				try {
 					transaction.cancel();
 				} finally {
-					pool.offer(connectionState);
+                    final EndpointConnectionState state = connectionStateRef.get();
+                    if ( state != null ) {
+                        pool.offer(connectionState);
+                        connectionStateRef.set(null);
+                    }
 				}
 			}
 
+			@Override
+			public void error() {
+			    try {
+			        transaction.error();
+			    } finally {
+                    final EndpointConnectionState state = connectionStateRef.get();
+                    if ( state != null ) {
+                        pool.offer(connectionState);
+                        connectionStateRef.set(null);
+                    }
+			    }
+			}
+			
 			@Override
 			public void send(final DataPacket dataPacket) throws IOException {
 				transaction.send(dataPacket);

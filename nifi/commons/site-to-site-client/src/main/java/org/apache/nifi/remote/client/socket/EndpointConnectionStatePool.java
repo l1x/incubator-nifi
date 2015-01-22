@@ -66,7 +66,6 @@ import org.apache.nifi.remote.TransferDirection;
 import org.apache.nifi.remote.cluster.ClusterNodeInformation;
 import org.apache.nifi.remote.cluster.NodeInformation;
 import org.apache.nifi.remote.codec.FlowFileCodec;
-import org.apache.nifi.remote.exception.BadRequestException;
 import org.apache.nifi.remote.exception.HandshakeException;
 import org.apache.nifi.remote.exception.PortNotRunningException;
 import org.apache.nifi.remote.exception.ProtocolException;
@@ -399,7 +398,7 @@ public class EndpointConnectionStatePool {
         return (expirationEnd == null ? false : expirationEnd > System.currentTimeMillis() );
     }
     
-    private List<PeerStatus> createPeerStatusList(final TransferDirection direction) throws IOException, BadRequestException, HandshakeException, UnknownPortException, PortNotRunningException {
+    private List<PeerStatus> createPeerStatusList(final TransferDirection direction) throws IOException, HandshakeException, UnknownPortException, PortNotRunningException {
         final Set<PeerStatus> statuses = getPeerStatuses();
         if ( statuses == null ) {
             return new ArrayList<>();
@@ -435,7 +434,7 @@ public class EndpointConnectionStatePool {
         return cache.getStatuses();
     }
 
-    private Set<PeerStatus> fetchRemotePeerStatuses() throws IOException, HandshakeException, UnknownPortException, PortNotRunningException, BadRequestException {
+    private Set<PeerStatus> fetchRemotePeerStatuses() throws IOException, HandshakeException, UnknownPortException, PortNotRunningException {
     	final String hostname = clusterUrl.getHost();
         final int port = getSiteToSitePort();
     	
@@ -444,11 +443,7 @@ public class EndpointConnectionStatePool {
         final SocketClientProtocol clientProtocol = new SocketClientProtocol();
         final DataInputStream dis = new DataInputStream(commsSession.getInput().getInputStream());
         final DataOutputStream dos = new DataOutputStream(commsSession.getOutput().getOutputStream());
-        try {
-            RemoteResourceInitiator.initiateResourceNegotiation(clientProtocol, dis, dos);
-        } catch (final HandshakeException e) {
-            throw new BadRequestException(e.toString());
-        }
+        RemoteResourceInitiator.initiateResourceNegotiation(clientProtocol, dis, dos);
 
         clientProtocol.setTimeout(commsTimeout);
         clientProtocol.handshake(peer, null);

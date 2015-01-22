@@ -24,7 +24,7 @@ public interface Transaction {
 
 	void confirm() throws IOException;
 	
-	void complete(boolean applyBackpressure) throws IOException;
+	void complete(boolean requestBackoff) throws IOException;
 	
 	void cancel() throws IOException;
 	
@@ -34,11 +34,14 @@ public interface Transaction {
 	
 	TransactionState getState() throws IOException;
 	
+	void error();
+	
 	public enum TransactionState {
 		TRANSACTION_STARTED,
 		DATA_EXCHANGED,
 		TRANSACTION_CONFIRMED,
 		TRANSACTION_COMPLETED,
-		TRANSACTION_CANCELED;
+		TRANSACTION_CANCELED,
+		ERROR;
 	}
 }

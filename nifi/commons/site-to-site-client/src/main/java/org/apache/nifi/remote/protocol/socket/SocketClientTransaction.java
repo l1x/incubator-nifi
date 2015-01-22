@@ -67,105 +67,119 @@ public class SocketClientTransaction implements Transaction {
 		initialize();
 	}
 	
-	// TODO: UPDATE STATE
 	private void initialize() throws IOException {
-        if ( direction == TransferDirection.RECEIVE ) {
-            // Indicate that we would like to have some data
-            RequestType.RECEIVE_FLOWFILES.writeRequestType(dos);
-            dos.flush();
-            
-            final Response dataAvailableCode = Response.read(dis);
-            switch (dataAvailableCode.getCode()) {
-                case MORE_DATA:
-                    logger.debug("{} {} Indicates that data is available", this, peer);
-                    this.dataAvailable = true;
-                    break;
-                case NO_MORE_DATA:
-                    logger.debug("{} No data available from {}", peer);
-                    this.dataAvailable = false;
-                    return;
-                default:
-                    throw new ProtocolException("Got unexpected response when asking for data: " + dataAvailableCode);
+	    try {
+            if ( direction == TransferDirection.RECEIVE ) {
+                // Indicate that we would like to have some data
+                RequestType.RECEIVE_FLOWFILES.writeRequestType(dos);
+                dos.flush();
+                
+                final Response dataAvailableCode = Response.read(dis);
+                switch (dataAvailableCode.getCode()) {
+                    case MORE_DATA:
+                        logger.debug("{} {} Indicates that data is available", this, peer);
+                        this.dataAvailable = true;
+                        break;
+                    case NO_MORE_DATA:
+                        logger.debug("{} No data available from {}", peer);
+                        this.dataAvailable = false;
+                        return;
+                    default:
+                        throw new ProtocolException("Got unexpected response when asking for data: " + dataAvailableCode);
+                }
+    
+            } else {
+                // Indicate that we would like to have some data
+                RequestType.SEND_FLOWFILES.writeRequestType(dos);
+                dos.flush();
             }
-
-        } else {
-            // Indicate that we would like to have some data
-            RequestType.SEND_FLOWFILES.writeRequestType(dos);
-            dos.flush();
-        }
+	    } catch (final Exception e) {
+	        error();
+	        throw e;
+	    }
 	}
 	
 	
-	// TODO: UPDATE STATE
 	@Override
 	public DataPacket receive() throws IOException {
-		if ( state != TransactionState.DATA_EXCHANGED && state != TransactionState.TRANSACTION_STARTED) {
-			throw new IllegalStateException("Cannot receive data because Transaction State is " + state);
-		}
-		
-    	if ( direction == TransferDirection.SEND ) {
-    	    throw new IllegalStateException("Attempting to receive data but started a SEND Transaction");
-    	}
-
-    	// if no data available, return null
-    	if ( !dataAvailable ) {
-    	    return null;
-    	}
-    	
-        logger.debug("{} Receiving data from {}", this, peer);
-        final DataPacket packet = codec.decode(new CheckedInputStream(dis, crc));
-        
-        if ( packet != null ) {
-        	transfers++;
+	    try {
+    		if ( state != TransactionState.DATA_EXCHANGED && state != TransactionState.TRANSACTION_STARTED) {
+    			throw new IllegalStateException("Cannot receive data because Transaction State is " + state);
+    		}
+    		
+        	if ( direction == TransferDirection.SEND ) {
+        	    throw new IllegalStateException("Attempting to receive data but started a SEND Transaction");
+        	}
+    
+        	// if no data available, return null
+        	if ( !dataAvailable ) {
+        	    return null;
+        	}
+        	
+            logger.debug("{} Receiving data from {}", this, peer);
+            final DataPacket packet = codec.decode(new CheckedInputStream(dis, crc));
             
-            // Determine if Peer will send us data or has no data to send us
-            final Response dataAvailableCode = Response.read(dis);
-            switch (dataAvailableCode.getCode()) {
-                case MORE_DATA:
-                    logger.debug("{} {} Indicates that data is available", this, peer);
-                    this.dataAvailable = true;
-                    break;
-                case NO_MORE_DATA:
-                    logger.debug("{} No data available from {}", peer);
-                    this.dataAvailable = false;
-                    break;
-                default:
-                    throw new ProtocolException("Got unexpected response when asking for data: " + dataAvailableCode);
+            if ( packet != null ) {
+            	transfers++;
+                
+                // Determine if Peer will send us data or has no data to send us
+                final Response dataAvailableCode = Response.read(dis);
+                switch (dataAvailableCode.getCode()) {
+                    case MORE_DATA:
+                        logger.debug("{} {} Indicates that data is available", this, peer);
+                        this.dataAvailable = true;
+                        break;
+                    case NO_MORE_DATA:
+                        logger.debug("{} No data available from {}", peer);
+                        this.dataAvailable = false;
+                        break;
+                    default:
+                        throw new ProtocolException("Got unexpected response when asking for data: " + dataAvailableCode);
+                }
             }
-        }
-        
-        return packet;
+            
+            this.state = TransactionState.DATA_EXCHANGED;
+            return packet;
+	    } catch (final Exception e) {
+	        error();
+	        throw e;
+	    }
 	}
 	
 	
-	// TODO: UPDATE STATE
 	@Override
 	public void send(DataPacket dataPacket) throws IOException {
-		if ( state != TransactionState.DATA_EXCHANGED && state != TransactionState.TRANSACTION_STARTED) {
-			throw new IllegalStateException("Cannot send data because Transaction State is " + state);
-		}
-
-        if ( direction == TransferDirection.RECEIVE ) {
-            throw new IllegalStateException("Attempting to send data but started a RECEIVE Transaction");
-        }
-
-		if ( transfers > 0 ) {
-            ResponseCode.CONTINUE_TRANSACTION.writeResponse(dos);
-        }
-
-        logger.debug("{} Sending data to {}", this, peer);
-
-		final OutputStream out = new CheckedOutputStream(dos, crc);
-        codec.encode(dataPacket, out);
-        
-        // need to close the CompressionOutputStream in order to force it write out any remaining bytes.
-        // Otherwise, do NOT close it because we don't want to close the underlying stream
-        // (CompressionOutputStream will not close the underlying stream when it's closed)
-        if ( compress ) {
-        	out.close();
-        }
-        
-        transfers++;
+	    try {
+    		if ( state != TransactionState.DATA_EXCHANGED && state != TransactionState.TRANSACTION_STARTED) {
+    			throw new IllegalStateException("Cannot send data because Transaction State is " + state);
+    		}
+    
+            if ( direction == TransferDirection.RECEIVE ) {
+                throw new IllegalStateException("Attempting to send data but started a RECEIVE Transaction");
+            }
+    
+    		if ( transfers > 0 ) {
+                ResponseCode.CONTINUE_TRANSACTION.writeResponse(dos);
+            }
+    
+            logger.debug("{} Sending data to {}", this, peer);
+    
+    		final OutputStream out = new CheckedOutputStream(dos, crc);
+            codec.encode(dataPacket, out);
+            
+            // need to close the CompressionOutputStream in order to force it write out any remaining bytes.
+            // Otherwise, do NOT close it because we don't want to close the underlying stream
+            // (CompressionOutputStream will not close the underlying stream when it's closed)
+            if ( compress ) {
+            	out.close();
+            }
+            
+            transfers++;
+            this.state = TransactionState.DATA_EXCHANGED;
+	    } catch (final Exception e) {
+	        error();
+	        throw e;
+	    }
 	}
 	
 	
@@ -180,111 +194,123 @@ public class SocketClientTransaction implements Transaction {
 	}
 	
 	
-	// TODO: UPDATE STATE
 	@Override
-	public void complete(boolean applyBackPressure) throws IOException {
-		if ( state != TransactionState.TRANSACTION_CONFIRMED ) {
-			throw new IllegalStateException("Cannot complete transaction because state is " + state + 
-					"; Transaction can only be completed when state is " + TransactionState.TRANSACTION_CONFIRMED);
-		}
-		
-		if ( direction == TransferDirection.RECEIVE ) {
-            if ( applyBackPressure ) {
-                // Confirm that we received the data and the peer can now discard it but that the peer should not
-                // send any more data for a bit
-                logger.debug("{} Sending TRANSACTION_FINISHED_BUT_DESTINATION_FULL to {}", this, peer);
-                ResponseCode.TRANSACTION_FINISHED_BUT_DESTINATION_FULL.writeResponse(dos);
+	public void complete(boolean requestBackoff) throws IOException {
+	    try {
+    		if ( state != TransactionState.TRANSACTION_CONFIRMED ) {
+    			throw new IllegalStateException("Cannot complete transaction because state is " + state + 
+    					"; Transaction can only be completed when state is " + TransactionState.TRANSACTION_CONFIRMED);
+    		}
+    		
+    		if ( direction == TransferDirection.RECEIVE ) {
+                if ( requestBackoff ) {
+                    // Confirm that we received the data and the peer can now discard it but that the peer should not
+                    // send any more data for a bit
+                    logger.debug("{} Sending TRANSACTION_FINISHED_BUT_DESTINATION_FULL to {}", this, peer);
+                    ResponseCode.TRANSACTION_FINISHED_BUT_DESTINATION_FULL.writeResponse(dos);
+                } else {
+                    // Confirm that we received the data and the peer can now discard it
+                    logger.debug("{} Sending TRANSACTION_FINISHED to {}", this, peer);
+                    ResponseCode.TRANSACTION_FINISHED.writeResponse(dos);
+                }
             } else {
-                // Confirm that we received the data and the peer can now discard it
-                logger.debug("{} Sending TRANSACTION_FINISHED to {}", this, peer);
-                ResponseCode.TRANSACTION_FINISHED.writeResponse(dos);
-            }
-        } else {
-            final Response transactionResponse;
-            try {
-                transactionResponse = Response.read(dis);
-            } catch (final IOException e) {
-                throw new IOException(this + " Failed to receive a response from " + peer + " when expecting a TransactionFinished Indicator. " +
-                        "It is unknown whether or not the peer successfully received/processed the data.", e);
-            }
-            
-            logger.debug("{} Received {} from {}", this, transactionResponse, peer);
-            if ( transactionResponse.getCode() == ResponseCode.TRANSACTION_FINISHED_BUT_DESTINATION_FULL ) {
-                peer.penalize(penaltyMillis);
-            } else if ( transactionResponse.getCode() != ResponseCode.TRANSACTION_FINISHED ) {
-                throw new ProtocolException("After sending data, expected TRANSACTION_FINISHED response but got " + transactionResponse);
-            }
-        }
-	}
-	
-	
-	// TODO: UPDATE STATE
-	@Override
-	public void confirm() throws IOException {
-		if ( state != TransactionState.DATA_EXCHANGED ) {
-			throw new IllegalStateException("Cannot confirm Transaction because state is " + state + 
-					"; Transaction can only be confirmed when state is " + TransactionState.DATA_EXCHANGED );
-		}
-
-        if ( direction == TransferDirection.RECEIVE ) {
-            if ( dataAvailable ) {
-                throw new IllegalStateException("Cannot complete transaction because the sender has already sent more data than client has consumed.");
-            }
-            
-            // we received a FINISH_TRANSACTION indicator. Send back a CONFIRM_TRANSACTION message
-            // to peer so that we can verify that the connection is still open. This is a two-phase commit,
-            // which helps to prevent the chances of data duplication. Without doing this, we may commit the
-            // session and then when we send the response back to the peer, the peer may have timed out and may not
-            // be listening. As a result, it will re-send the data. By doing this two-phase commit, we narrow the
-            // Critical Section involved in this transaction so that rather than the Critical Section being the
-            // time window involved in the entire transaction, it is reduced to a simple round-trip conversation.
-            logger.trace("{} Sending CONFIRM_TRANSACTION Response Code to {}", this, peer);
-            final String calculatedCRC = String.valueOf(crc.getValue());
-            ResponseCode.CONFIRM_TRANSACTION.writeResponse(dos, calculatedCRC);
-            
-            final Response confirmTransactionResponse = Response.read(dis);
-            logger.trace("{} Received {} from {}", this, confirmTransactionResponse, peer);
-            
-            switch (confirmTransactionResponse.getCode()) {
-                case CONFIRM_TRANSACTION:
-                    break;
-                case BAD_CHECKSUM:
-                    throw new IOException(this + " Received a BadChecksum response from peer " + peer);
-                default:
-                    throw new ProtocolException(this + " Received unexpected Response from peer " + peer + " : " + confirmTransactionResponse + "; expected 'Confirm Transaction' Response Code");
-            }
-        } else {
-            logger.debug("{} Sent FINISH_TRANSACTION indicator to {}", this, peer);
-            ResponseCode.FINISH_TRANSACTION.writeResponse(dos);
-            
-            final String calculatedCRC = String.valueOf(crc.getValue());
-            
-            // we've sent a FINISH_TRANSACTION. Now we'll wait for the peer to send a 'Confirm Transaction' response
-            final Response transactionConfirmationResponse = Response.read(dis);
-            if ( transactionConfirmationResponse.getCode() == ResponseCode.CONFIRM_TRANSACTION ) {
-                // Confirm checksum and echo back the confirmation.
-                logger.trace("{} Received {} from {}", this, transactionConfirmationResponse, peer);
-                final String receivedCRC = transactionConfirmationResponse.getMessage();
-                
-                // CRC was not used before version 4
-                if ( protocolVersion > 3 ) {
-                    if ( !receivedCRC.equals(calculatedCRC) ) {
-                        ResponseCode.BAD_CHECKSUM.writeResponse(dos);
-                        throw new IOException(this + " Sent data to peer " + peer + " but calculated CRC32 Checksum as " + calculatedCRC + " while peer calculated CRC32 Checksum as " + receivedCRC + "; canceling transaction and rolling back session");
-                    }
+                final Response transactionResponse;
+                try {
+                    transactionResponse = Response.read(dis);
+                } catch (final IOException e) {
+                    throw new IOException(this + " Failed to receive a response from " + peer + " when expecting a TransactionFinished Indicator. " +
+                            "It is unknown whether or not the peer successfully received/processed the data.", e);
                 }
                 
-                ResponseCode.CONFIRM_TRANSACTION.writeResponse(dos, "");
-            } else {
-                throw new ProtocolException("Expected to receive 'Confirm Transaction' response from peer " + peer + " but received " + transactionConfirmationResponse);
+                logger.debug("{} Received {} from {}", this, transactionResponse, peer);
+                if ( transactionResponse.getCode() == ResponseCode.TRANSACTION_FINISHED_BUT_DESTINATION_FULL ) {
+                    peer.penalize(penaltyMillis);
+                } else if ( transactionResponse.getCode() != ResponseCode.TRANSACTION_FINISHED ) {
+                    throw new ProtocolException("After sending data, expected TRANSACTION_FINISHED response but got " + transactionResponse);
+                }
             }
-        }
+	    } catch (final Exception e) {
+	        error();
+	        throw e;
+	    }
+	}
+	
+	
+	@Override
+	public void confirm() throws IOException {
+	    try {
+    		if ( state != TransactionState.DATA_EXCHANGED ) {
+    			throw new IllegalStateException("Cannot confirm Transaction because state is " + state + 
+    					"; Transaction can only be confirmed when state is " + TransactionState.DATA_EXCHANGED );
+    		}
+    
+            if ( direction == TransferDirection.RECEIVE ) {
+                if ( dataAvailable ) {
+                    throw new IllegalStateException("Cannot complete transaction because the sender has already sent more data than client has consumed.");
+                }
+                
+                // we received a FINISH_TRANSACTION indicator. Send back a CONFIRM_TRANSACTION message
+                // to peer so that we can verify that the connection is still open. This is a two-phase commit,
+                // which helps to prevent the chances of data duplication. Without doing this, we may commit the
+                // session and then when we send the response back to the peer, the peer may have timed out and may not
+                // be listening. As a result, it will re-send the data. By doing this two-phase commit, we narrow the
+                // Critical Section involved in this transaction so that rather than the Critical Section being the
+                // time window involved in the entire transaction, it is reduced to a simple round-trip conversation.
+                logger.trace("{} Sending CONFIRM_TRANSACTION Response Code to {}", this, peer);
+                final String calculatedCRC = String.valueOf(crc.getValue());
+                ResponseCode.CONFIRM_TRANSACTION.writeResponse(dos, calculatedCRC);
+                
+                final Response confirmTransactionResponse = Response.read(dis);
+                logger.trace("{} Received {} from {}", this, confirmTransactionResponse, peer);
+                
+                switch (confirmTransactionResponse.getCode()) {
+                    case CONFIRM_TRANSACTION:
+                        break;
+                    case BAD_CHECKSUM:
+                        throw new IOException(this + " Received a BadChecksum response from peer " + peer);
+                    default:
+                        throw new ProtocolException(this + " Received unexpected Response from peer " + peer + " : " + confirmTransactionResponse + "; expected 'Confirm Transaction' Response Code");
+                }
+            } else {
+                logger.debug("{} Sent FINISH_TRANSACTION indicator to {}", this, peer);
+                ResponseCode.FINISH_TRANSACTION.writeResponse(dos);
+                
+                final String calculatedCRC = String.valueOf(crc.getValue());
+                
+                // we've sent a FINISH_TRANSACTION. Now we'll wait for the peer to send a 'Confirm Transaction' response
+                final Response transactionConfirmationResponse = Response.read(dis);
+                if ( transactionConfirmationResponse.getCode() == ResponseCode.CONFIRM_TRANSACTION ) {
+                    // Confirm checksum and echo back the confirmation.
+                    logger.trace("{} Received {} from {}", this, transactionConfirmationResponse, peer);
+                    final String receivedCRC = transactionConfirmationResponse.getMessage();
+                    
+                    // CRC was not used before version 4
+                    if ( protocolVersion > 3 ) {
+                        if ( !receivedCRC.equals(calculatedCRC) ) {
+                            ResponseCode.BAD_CHECKSUM.writeResponse(dos);
+                            throw new IOException(this + " Sent data to peer " + peer + " but calculated CRC32 Checksum as " + calculatedCRC + " while peer calculated CRC32 Checksum as " + receivedCRC + "; canceling transaction and rolling back session");
+                        }
+                    }
+                    
+                    ResponseCode.CONFIRM_TRANSACTION.writeResponse(dos, "");
+                } else {
+                    throw new ProtocolException("Expected to receive 'Confirm Transaction' response from peer " + peer + " but received " + transactionConfirmationResponse);
+                }
+            }
+	    } catch (final Exception e) {
+	        error();
+	        throw e;
+	    }
 	}
 
+	@Override
+	public void error() {
+	    this.state = TransactionState.ERROR;
+	}
 	
-	// TODO: UPDATE STATE
 	@Override
 	public TransactionState getState() {
 		return state;
 	}
+
 }
