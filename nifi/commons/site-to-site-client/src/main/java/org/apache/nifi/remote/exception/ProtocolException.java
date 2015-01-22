@@ -16,7 +16,9 @@
  */
 package org.apache.nifi.remote.exception;
 
-public class ProtocolException extends Exception {
+import java.io.IOException;
+
+public class ProtocolException extends IOException {
 
     private static final long serialVersionUID = 5763900324505818495L;
 

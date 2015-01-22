@@ -24,6 +24,7 @@ import javax.net.ssl.SSLContext;
 
 import org.apache.nifi.events.EventReporter;
 import org.apache.nifi.remote.RemoteDestination;
+import org.apache.nifi.remote.Transaction;
 import org.apache.nifi.remote.TransferDirection;
 import org.apache.nifi.remote.client.SiteToSiteClient;
 import org.apache.nifi.remote.exception.HandshakeException;
@@ -65,7 +66,7 @@ public class SocketClient implements SiteToSiteClient {
 	
 	
 	@Override
-	public void send(final DataPacket dataPacket) throws IOException {
+	public Transaction createTransaction(final TransferDirection direction) throws IOException {
 		final String portId = getPortIdentifier(TransferDirection.SEND);
 		
 		if ( portId == null ) {
@@ -91,19 +92,58 @@ public class SocketClient implements SiteToSiteClient {
 		
 		final EndpointConnectionState connectionState;
 		try {
-			connectionState = pool.getEndpointConnectionState(remoteDestination, TransferDirection.SEND);
+			connectionState = pool.getEndpointConnectionState(remoteDestination, direction);
 		} catch (final ProtocolException | HandshakeException | PortNotRunningException | UnknownPortException e) {
 			throw new IOException(e);
 		}
 		
+		final Transaction transaction = connectionState.getSocketClientProtocol().startTransaction(
+				connectionState.getPeer(), connectionState.getCodec(), direction);
 		
+		// Wrap the transaction in a new one that will return the EndpointConnectionState back to the pool whenever
+		// the transaction is either completed or canceled.
+		return new Transaction() {
+			@Override
+			public void confirm() throws IOException {
+				transaction.confirm();
+			}
+
+			@Override
+			public void complete(final boolean applyBackpressure) throws IOException {
+				try {
+					transaction.complete(applyBackpressure);
+				} finally {
+					pool.offer(connectionState);
+				}
+			}
+
+			@Override
+			public void cancel() throws IOException {
+				try {
+					transaction.cancel();
+				} finally {
+					pool.offer(connectionState);
+				}
+			}
+
+			@Override
+			public void send(final DataPacket dataPacket) throws IOException {
+				transaction.send(dataPacket);
+			}
+
+			@Override
+			public DataPacket receive() throws IOException {
+				return transaction.receive();
+			}
+
+			@Override
+			public TransactionState getState() throws IOException {
+				return transaction.getState();
+			}
+			
+		};
 	}
 
-	@Override
-	public DataPacket receive() throws IOException {
-		// TODO Auto-generated method stub
-		return null;
-	}
 	
 	@Override
 	public void close() throws IOException {

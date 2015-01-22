@@ -23,6 +23,7 @@ import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.remote.Peer;
 import org.apache.nifi.remote.PeerStatus;
+import org.apache.nifi.remote.Transaction;
 import org.apache.nifi.remote.TransferDirection;
 import org.apache.nifi.remote.VersionedRemoteResource;
 import org.apache.nifi.remote.codec.FlowFileCodec;
@@ -50,17 +51,7 @@ public interface ClientProtocol extends VersionedRemoteResource {
     
     
     
-    void startTransaction(Peer peer, TransferDirection direction) throws IOException, ProtocolException;
-    
-    void completeTransaction(boolean applyBackPressure) throws IOException, ProtocolException;
-    
-    void rollbackTransaction();
-    
-    // must be done within a transaction.
-    void transferData(DataPacket dataPacket, FlowFileCodec codec) throws IOException, ProtocolException;
-    
-    // must be done within a transaction.
-    DataPacket receiveData(FlowFileCodec codec) throws IOException, ProtocolException;
+    Transaction startTransaction(Peer peer, FlowFileCodec codec, TransferDirection direction) throws IOException;
     
     
     /**

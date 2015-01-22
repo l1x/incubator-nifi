@@ -14,16 +14,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.nifi.remote.client;
+package org.apache.nifi.remote;
 
-import java.io.Closeable;
 import java.io.IOException;
 
-import org.apache.nifi.remote.Transaction;
-import org.apache.nifi.remote.TransferDirection;
+import org.apache.nifi.remote.protocol.DataPacket;
 
-public interface SiteToSiteClient extends Closeable {
+public interface Transaction {
 
-	Transaction createTransaction(TransferDirection direction) throws IOException;
+	void confirm() throws IOException;
 	
+	void complete(boolean applyBackpressure) throws IOException;
+	
+	void cancel() throws IOException;
+	
+	void send(DataPacket dataPacket) throws IOException;
+	
+	DataPacket receive() throws IOException;
+	
+	TransactionState getState() throws IOException;
+	
+	public enum TransactionState {
+		TRANSACTION_STARTED,
+		DATA_EXCHANGED,
+		TRANSACTION_CONFIRMED,
+		TRANSACTION_COMPLETED,
+		TRANSACTION_CANCELED;
+	}
 }
