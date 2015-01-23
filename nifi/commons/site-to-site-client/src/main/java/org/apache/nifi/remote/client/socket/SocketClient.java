@@ -124,13 +124,13 @@ public class SocketClient implements SiteToSiteClient {
 			}
 
 			@Override
-			public void cancel() throws IOException {
+			public void cancel(final String explanation) throws IOException {
 				try {
-					transaction.cancel();
+					transaction.cancel(explanation);
 				} finally {
                     final EndpointConnectionState state = connectionStateRef.get();
                     if ( state != null ) {
-                        pool.offer(connectionState);
+                        pool.terminate(connectionState);
                         connectionStateRef.set(null);
                     }
 				}
@@ -143,7 +143,7 @@ public class SocketClient implements SiteToSiteClient {
 			    } finally {
                     final EndpointConnectionState state = connectionStateRef.get();
                     if ( state != null ) {
-                        pool.offer(connectionState);
+                        pool.terminate(connectionState);
                         connectionStateRef.set(null);
                     }
 			    }

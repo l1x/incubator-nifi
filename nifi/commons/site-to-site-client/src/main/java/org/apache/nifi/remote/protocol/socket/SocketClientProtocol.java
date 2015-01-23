@@ -71,8 +71,6 @@ public class SocketClientProtocol implements ClientProtocol {
     private String transitUriPrefix = null;
     private int timeoutMillis = 30000;
 
-    private SocketClientTransaction transaction;
-    
     private static final long BATCH_SEND_NANOS = TimeUnit.SECONDS.toNanos(5L); // send batches of up to 5 seconds
     
     public SocketClientProtocol() {
@@ -248,35 +246,6 @@ public class SocketClientProtocol implements ClientProtocol {
     }
 
 
-    
-    // TODO: Transaction should be pulled out into its own class.
-    //			Flow of execution:
-    //			- start transaction
-    //			- send/receive data
-    //			- confirm contents
-    // 			- complete / rollback
-    //
-    //			- this class should validate transaction state before each step.
-    // We need to confirm transaction to ensure that data is correct. Yes, it is sent via TCP, which should ensure that the
-    // data is correct, but things happen. Humans make mistakes. There could easily be a bug on our end, for example. And this
-    // will ensure that we guard against that. It's a good defensive programming strategy.
-    public void confirmTransaction() throws IOException {
-        
-    }
-    
-    
-    public void cancelTransaction() {
-        final SocketClientTransaction transaction = this.transaction;
-        this.transaction = null;
-        
-        if ( transaction == null ) {
-            throw new IllegalStateException("Cannot rollback transaction because no transaction has been started");
-        }
-        
-        // TODO: IMPLEMENT
-    }
-    
-    
     @Override
     public void receiveFlowFiles(final Peer peer, final ProcessContext context, final ProcessSession session, final FlowFileCodec codec) throws IOException, ProtocolException {
     	final String userDn = peer.getCommunicationsSession().getUserDn();

@@ -183,14 +183,19 @@ public class SocketClientTransaction implements Transaction {
 	}
 	
 	
-	// TODO: UPDATE STATE
 	@Override
-	public void cancel() {
-		if ( state == TransactionState.TRANSACTION_CANCELED || state == TransactionState.TRANSACTION_COMPLETED ) {
+	public void cancel(final String explanation) throws IOException {
+		if ( state == TransactionState.TRANSACTION_CANCELED || state == TransactionState.TRANSACTION_COMPLETED || state == TransactionState.ERROR ) {
 			throw new IllegalStateException("Cannot cancel transaction because state is already " + state);
 		}
-		
-		// TODO: implement
+
+		try {
+		    ResponseCode.CANCEL_TRANSACTION.writeResponse(dos, explanation == null ? "<No explanation given>" : explanation);
+		    state = TransactionState.TRANSACTION_CANCELED;
+		} catch (final IOException ioe) {
+		    error();
+		    throw ioe;
+		}
 	}
 	
 	

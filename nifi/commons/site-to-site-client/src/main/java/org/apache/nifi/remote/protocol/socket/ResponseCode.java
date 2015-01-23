@@ -40,6 +40,7 @@ public enum ResponseCode {
     CONFIRM_TRANSACTION(12, "Confirm Transaction", true),   // "Explanation" of this code is the checksum
     TRANSACTION_FINISHED(13, "Transaction Finished", false),
     TRANSACTION_FINISHED_BUT_DESTINATION_FULL(14, "Transaction Finished But Destination is Full", false),
+    CANCEL_TRANSACTION(15, "Cancel Transaction", true),
     BAD_CHECKSUM(19, "Bad Checksum", false),
 
     // data availability indicators

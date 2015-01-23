@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.net.URI;
 
 import org.apache.nifi.remote.protocol.CommunicationsSession;
+import org.apache.nifi.stream.io.NullOutputStream;
+import org.apache.nifi.stream.io.StreamUtils;
 
 public class Peer {
 
@@ -57,8 +59,12 @@ public class Peer {
     public void close() throws IOException {
         this.closed = true;
 
-        // TODO: Consume the InputStream so that it doesn't linger on the Peer's outgoing socket buffer
-        commsSession.close();
+        // Consume the InputStream so that it doesn't linger on the Peer's outgoing socket buffer
+        try {
+            StreamUtils.copy(commsSession.getInput().getInputStream(), new NullOutputStream());
+        } finally {
+            commsSession.close();
+        }
     }
 
     public void penalize(final long millis) {

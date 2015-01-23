@@ -665,6 +665,10 @@ public class EndpointConnectionStatePool {
         }
     }
     
+    public void terminate(final EndpointConnectionState state) {
+        cleanup(state.getSocketClientProtocol(), state.getPeer());
+    }
+    
     private void refreshPeers() {
         final PeerStatusCache existingCache = peerStatusCache;
         if (existingCache != null && (existingCache.getTimestamp() + PEER_CACHE_MILLIS > System.currentTimeMillis())) {
