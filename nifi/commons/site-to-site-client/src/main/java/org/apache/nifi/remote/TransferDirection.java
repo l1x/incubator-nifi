@@ -16,8 +16,19 @@
  */
 package org.apache.nifi.remote;
 
-public enum TransferDirection {
 
+/**
+ * An enumeration for specifying the direction in which data should be transferred between a client
+ * and a remote NiFi instance.
+ */
+public enum TransferDirection {
+	/**
+	 * The client is to send data to the remote instance.
+	 */
     SEND,
+    
+    /**
+     * The client is to receive data from the remote instance.
+     */
     RECEIVE;
 }

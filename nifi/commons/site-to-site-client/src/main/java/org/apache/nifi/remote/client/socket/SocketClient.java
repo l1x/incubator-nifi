@@ -16,13 +16,9 @@
  */
 package org.apache.nifi.remote.client.socket;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.SSLContext;
-
-import org.apache.nifi.events.EventReporter;
 import org.apache.nifi.remote.RemoteDestination;
 import org.apache.nifi.remote.Transaction;
 import org.apache.nifi.remote.TransferDirection;
@@ -41,14 +37,14 @@ public class SocketClient implements SiteToSiteClient {
 	private final long penalizationNanos;
 	private volatile String portIdentifier;
 	
-	private SocketClient(final Builder builder) {
-		pool = new EndpointConnectionStatePool(builder.url, (int) TimeUnit.NANOSECONDS.toMillis(builder.timeoutNanos), 
-				builder.sslContext, builder.eventReporter, builder.peerPersistenceFile);
+	public SocketClient(final Builder builder) {
+		pool = new EndpointConnectionStatePool(builder.getUrl(), (int) TimeUnit.NANOSECONDS.toMillis(builder.getTimeoutNanos()), 
+				builder.getSslContext(), builder.getEventReporter(), builder.getPeerPersistenceFile());
 		
-		this.compress = builder.useCompression;
-		this.portIdentifier = builder.portIdentifier;
-		this.portName = builder.portName;
-		this.penalizationNanos = builder.penalizationNanos;
+		this.compress = builder.isUseCompression();
+		this.portIdentifier = builder.getPortIdentifier();
+		this.portName = builder.getPortName();
+		this.penalizationNanos = builder.getPenalizationNanos();
 	}
 	
 	
@@ -172,74 +168,5 @@ public class SocketClient implements SiteToSiteClient {
 	public void close() throws IOException {
 		pool.shutdown();
 	}
-
 	
-	public static class Builder {
-		private String url;
-		private long timeoutNanos = TimeUnit.SECONDS.toNanos(30);
-		private long penalizationNanos = TimeUnit.SECONDS.toNanos(3);
-		private SSLContext sslContext;
-		private EventReporter eventReporter;
-		private File peerPersistenceFile;
-		private boolean useCompression;
-		private String portName;
-		private String portIdentifier;
-		
-		public Builder url(final String url) {
-			this.url = url;
-			return this;
-		}
-		
-		public Builder timeout(final long timeout, final TimeUnit unit) {
-			this.timeoutNanos = unit.toNanos(timeout);
-			return this;
-		}
-		
-		public Builder nodePenalizationPeriod(final long period, final TimeUnit unit) {
-			this.penalizationNanos = unit.toNanos(period);
-			return this;
-		}
-		
-		public Builder sslContext(final SSLContext sslContext) {
-			this.sslContext = sslContext;
-			return this;
-		}
-		
-		public Builder eventReporter(final EventReporter eventReporter) {
-			this.eventReporter = eventReporter;
-			return this;
-		}
-		
-		public Builder peerPersistenceFile(final File peerPersistenceFile) {
-			this.peerPersistenceFile = peerPersistenceFile;
-			return this;
-		}
-		
-		public Builder useCompression(final boolean compress) {
-			this.useCompression = compress;
-			return this;
-		}
-		
-		public Builder portName(final String portName) {
-			this.portName = portName;
-			return this;
-		}
-		
-		public Builder portIdentifier(final String portIdentifier) {
-			this.portIdentifier = portIdentifier;
-			return this;
-		}
-		
-		public SocketClient build() {
-			if ( url == null ) {
-				throw new IllegalStateException("Must specify URL to build Site-to-Site client");
-			}
-			
-			if ( portName == null && portIdentifier == null ) {
-				throw new IllegalStateException("Must specify either Port Name or Port Identifier to builder Site-to-Site client");
-			}
-			
-			return new SocketClient(this);
-		}
-	}
 }

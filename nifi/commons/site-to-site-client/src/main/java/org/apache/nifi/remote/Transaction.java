@@ -38,7 +38,9 @@ import org.apache.nifi.remote.protocol.DataPacket;
  * The general flow of execute of a Transaction is as follows:
  * <ol>
  *      <li>Create the transaction as described above.</li>
- *      <li>Send data via the {@link #send(DataPacket)} method or receive data via the {@link #receive()} method.</li>
+ *      <li>Send data via the {@link #send(DataPacket)} method or receive data via the {@link #receive()} method. This method
+ *          will be called 1 or more times. In the case of receive, this method should be called until the method returns {@code null},
+ *          signifying that the remote instance is finished sending data.</li>
  *      <li>Confirm the transaction via the {@link #confirm()} method.</li>
  *      <li>Either complete the transaction via the {@link #complete(boolean)} method or cancel the transaction
  *          via the {@link #cancel()} method.</li>
@@ -62,6 +64,10 @@ import org.apache.nifi.remote.protocol.DataPacket;
  * If at any point an IOException is thrown from one of the methods of the Transaction, that Transaction
  * is automatically closed via a call to {@link #error()}.
  * </p>
+ * 
+ * <p>
+ * The Transaction class should not be assumed to be thread-safe.
+ * </p>
  */
 public interface Transaction {
 
@@ -74,7 +80,11 @@ public interface Transaction {
     void send(DataPacket dataPacket) throws IOException;
     
     /**
-     * Receives information from the remote NiFi instance.
+     * Retrieves information from the remote NiFi instance, if any is available. If no data is available, will return
+     * {@code null}. It is important to consume all data from the remote NiFi instance before attempting to 
+     * call {@link #confirm()}. This is because the sender is always responsible for determining when the Transaction
+     * has finished. This is done in order to prevent the need for a round-trip network request to receive data for
+     * each data packet.
      * 
      * @return the DataPacket received, or {@code null} if there is no more data to receive. 
      * @throws IOException
@@ -93,6 +103,16 @@ public interface Transaction {
      * a bug exists somewhere along the line that we do not end up sending or receiving corrupt data. If the
      * CRC32 of the sender and the CRC32 of the receiver do not match, an IOException will be thrown and both the
      * sender and receiver will cancel the transaction automatically.
+     * </p>
+     * 
+     * <p>
+     * If the {@link TransferDirection} of this Transaction is RECEIVE, this method will throw an Exception unless
+     * all data from the remote instance has been consumed (i.e., a call to {@link #receive()} returns {@code null}).
+     * </p>
+     * 
+     * <p>
+     * If the {@link TransferDirection} of this Transaction is SEND, calling this method dictates that no more data will be
+     * sent in this transaction. I.e., there will be no more calls to {@link #send(DataPacket)}.
      * </p>
      * 
      * @throws IOException

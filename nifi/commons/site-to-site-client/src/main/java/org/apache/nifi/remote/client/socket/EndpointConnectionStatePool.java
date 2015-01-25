@@ -362,7 +362,9 @@ public class EndpointConnectionStatePool {
                         logger.warn("", e);
                     }
                     
-                    eventReporter.reportEvent(Severity.WARNING, CATEGORY, message);
+                    if ( eventReporter != null ) {
+                    	eventReporter.reportEvent(Severity.WARNING, CATEGORY, message);
+                    }
                 }
                 
                 this.peerStatuses = peerList;
