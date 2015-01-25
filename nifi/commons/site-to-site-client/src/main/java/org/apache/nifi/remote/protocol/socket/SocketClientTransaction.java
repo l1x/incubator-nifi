@@ -208,6 +208,11 @@ public class SocketClientTransaction implements Transaction {
     		}
     		
     		if ( direction == TransferDirection.RECEIVE ) {
+    		    if ( transfers == 0 ) {
+    		        state = TransactionState.TRANSACTION_COMPLETED;
+    		        return;
+    		    }
+    		    
                 if ( requestBackoff ) {
                     // Confirm that we received the data and the peer can now discard it but that the peer should not
                     // send any more data for a bit
@@ -218,6 +223,8 @@ public class SocketClientTransaction implements Transaction {
                     logger.debug("{} Sending TRANSACTION_FINISHED to {}", this, peer);
                     ResponseCode.TRANSACTION_FINISHED.writeResponse(dos);
                 }
+                
+                state = TransactionState.TRANSACTION_COMPLETED;
             } else {
                 final Response transactionResponse;
                 try {
@@ -233,6 +240,8 @@ public class SocketClientTransaction implements Transaction {
                 } else if ( transactionResponse.getCode() != ResponseCode.TRANSACTION_FINISHED ) {
                     throw new ProtocolException("After sending data, expected TRANSACTION_FINISHED response but got " + transactionResponse);
                 }
+                
+                state = TransactionState.TRANSACTION_COMPLETED;
             }
 	    } catch (final Exception e) {
 	        error();
@@ -244,6 +253,12 @@ public class SocketClientTransaction implements Transaction {
 	@Override
 	public void confirm() throws IOException {
 	    try {
+	        if ( state == TransactionState.TRANSACTION_STARTED && !dataAvailable && direction == TransferDirection.RECEIVE ) {
+	            // client requested to receive data but no data available. no need to confirm.
+	            state = TransactionState.TRANSACTION_CONFIRMED;
+	            return;
+	        }
+	        
     		if ( state != TransactionState.DATA_EXCHANGED ) {
     			throw new IllegalStateException("Cannot confirm Transaction because state is " + state + 
     					"; Transaction can only be confirmed when state is " + TransactionState.DATA_EXCHANGED );
@@ -265,7 +280,14 @@ public class SocketClientTransaction implements Transaction {
                 final String calculatedCRC = String.valueOf(crc.getValue());
                 ResponseCode.CONFIRM_TRANSACTION.writeResponse(dos, calculatedCRC);
                 
-                final Response confirmTransactionResponse = Response.read(dis);
+                final Response confirmTransactionResponse;
+                try {
+                    confirmTransactionResponse = Response.read(dis);
+                } catch (final IOException ioe) {
+                    logger.error("Failed to receive response code from {} when expected confirmation of transaction", peer);
+                    throw ioe;
+                }
+                
                 logger.trace("{} Received {} from {}", this, confirmTransactionResponse, peer);
                 
                 switch (confirmTransactionResponse.getCode()) {
@@ -276,6 +298,8 @@ public class SocketClientTransaction implements Transaction {
                     default:
                         throw new ProtocolException(this + " Received unexpected Response from peer " + peer + " : " + confirmTransactionResponse + "; expected 'Confirm Transaction' Response Code");
                 }
+                
+                state = TransactionState.TRANSACTION_CONFIRMED;
             } else {
                 logger.debug("{} Sent FINISH_TRANSACTION indicator to {}", this, peer);
                 ResponseCode.FINISH_TRANSACTION.writeResponse(dos);
@@ -301,6 +325,8 @@ public class SocketClientTransaction implements Transaction {
                 } else {
                     throw new ProtocolException("Expected to receive 'Confirm Transaction' response from peer " + peer + " but received " + transactionConfirmationResponse);
                 }
+                
+                state = TransactionState.TRANSACTION_CONFIRMED;
             }
 	    } catch (final Exception e) {
 	        error();

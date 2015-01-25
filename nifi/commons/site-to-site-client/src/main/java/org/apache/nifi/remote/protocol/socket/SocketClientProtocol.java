@@ -291,6 +291,10 @@ public class SocketClientProtocol implements ClientProtocol {
 		transaction.complete(applyBackpressure);
 		logger.debug("{} Sending TRANSACTION_FINISHED_BUT_DESTINATION_FULL to {}", this, peer);
 
+		if ( flowFilesReceived.isEmpty() ) {
+		    return;
+		}
+		
 		stopWatch.stop();
 		final String flowFileDescription = flowFilesReceived.size() < 20 ? flowFilesReceived.toString() : flowFilesReceived.size() + " FlowFiles";
 		final String uploadDataRate = stopWatch.calculateDataRate(bytesReceived);
