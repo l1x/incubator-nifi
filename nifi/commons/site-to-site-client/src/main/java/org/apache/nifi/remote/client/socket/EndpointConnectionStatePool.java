@@ -775,4 +775,26 @@ public class EndpointConnectionStatePool {
 
         return listeningPort;
     }
+ 
+    /**
+     * Returns {@code true} if the remote instance is configured for secure site-to-site communications,
+     * {@code false} otherwise.
+     * 
+     * @return
+     * @throws IOException
+     */
+    public boolean isSecure() throws IOException {
+        remoteInfoReadLock.lock();
+        try {
+            final Boolean secure = this.siteToSiteSecure;
+            if (secure != null && this.remoteRefreshTime > System.currentTimeMillis() - REMOTE_REFRESH_MILLIS) {
+                return secure;
+            }
+        } finally {
+        	remoteInfoReadLock.unlock();
+        }
+
+        final ControllerDTO controller = refreshRemoteInfo();
+        return controller.isSiteToSiteSecure();
+    }
 }

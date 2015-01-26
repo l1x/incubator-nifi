@@ -77,6 +77,23 @@ public interface SiteToSiteClient extends Closeable {
 	 */
 	Transaction createTransaction(TransferDirection direction) throws IOException;
 	
+	/**
+	 * <p>
+	 * Returns {@code true} if site-to-site communications with the remote instance are secure, 
+	 * {@code false} if site-to-site communications with the remote instance are not secure. Whether or not
+	 * communications are secure depends on the server, not the client.
+	 * </p>
+	 * 
+	 * <p>
+	 * In order to determine whether the server is configured for secure communications, the client may have
+	 * to query the server's RESTful interface. Doing so could result in an IOException.
+	 * </p>
+	 * 
+	 * @return
+	 * @throws IOException if unable to query the remote instance's RESTful interface or if the remote
+	 * instance is not configured to allow site-to-site communications
+	 */
+	boolean isSecure() throws IOException;
 	
 	/**
 	 * <p>
@@ -236,38 +253,77 @@ public interface SiteToSiteClient extends Closeable {
 			return new SocketClient(this);
 		}
 
+		/**
+		 * Returns the configured URL for the remote NiFi instance
+		 * @return
+		 */
 		public String getUrl() {
 			return url;
 		}
 
-		public long getTimeoutNanos() {
-			return timeoutNanos;
+		/**
+		 * Returns the communications timeout in nanoseconds
+		 * @return
+		 */
+		public long getTimeout(final TimeUnit timeUnit) {
+			return timeUnit.convert(timeoutNanos, TimeUnit.NANOSECONDS);
 		}
 
-		public long getPenalizationNanos() {
-			return penalizationNanos;
+		/**
+		 * Returns the amount of time that a particular node will be ignored after a
+		 * communications error with that node occurs
+		 * @param timeUnit
+		 * @return
+		 */
+		public long getPenalizationPeriod(TimeUnit timeUnit) {
+			return timeUnit.convert(penalizationNanos, TimeUnit.NANOSECONDS);
 		}
 
+		/**
+		 * Returns the SSL Context that is configured for this builder
+		 * @return
+		 */
 		public SSLContext getSslContext() {
 			return sslContext;
 		}
 
+		/**
+		 * Returns the EventReporter that is to be used by clients to report events
+		 * @return
+		 */
 		public EventReporter getEventReporter() {
 			return eventReporter;
 		}
 
+		/**
+		 * Returns the file that is to be used for persisting the nodes of a remote cluster, if any.
+		 * @return
+		 */
 		public File getPeerPersistenceFile() {
 			return peerPersistenceFile;
 		}
 
+		/**
+		 * Returns a boolean indicating whether or not compression will be used to transfer data
+		 * to and from the remote instance
+		 * @return
+		 */
 		public boolean isUseCompression() {
 			return useCompression;
 		}
 
+		/**
+		 * Returns the name of the port that the client is to communicate with.
+		 * @return
+		 */
 		public String getPortName() {
 			return portName;
 		}
 
+		/**
+		 * Returns the identifier of the port that the client is to communicate with.
+		 * @return
+		 */
 		public String getPortIdentifier() {
 			return portIdentifier;
 		}

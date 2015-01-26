@@ -38,15 +38,20 @@ public class SocketClient implements SiteToSiteClient {
 	private volatile String portIdentifier;
 	
 	public SocketClient(final Builder builder) {
-		pool = new EndpointConnectionStatePool(builder.getUrl(), (int) TimeUnit.NANOSECONDS.toMillis(builder.getTimeoutNanos()), 
+		pool = new EndpointConnectionStatePool(builder.getUrl(), (int) builder.getTimeout(TimeUnit.MILLISECONDS), 
 				builder.getSslContext(), builder.getEventReporter(), builder.getPeerPersistenceFile());
 		
 		this.compress = builder.isUseCompression();
 		this.portIdentifier = builder.getPortIdentifier();
 		this.portName = builder.getPortName();
-		this.penalizationNanos = builder.getPenalizationNanos();
+		this.penalizationNanos = builder.getPenalizationPeriod(TimeUnit.NANOSECONDS);
 	}
 	
+	
+	@Override
+	public boolean isSecure() throws IOException {
+		return pool.isSecure();
+	}
 	
 	private String getPortIdentifier(final TransferDirection direction) throws IOException {
 		final String id = this.portIdentifier;
