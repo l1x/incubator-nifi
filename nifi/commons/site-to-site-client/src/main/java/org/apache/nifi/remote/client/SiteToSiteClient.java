@@ -250,7 +250,55 @@ public interface SiteToSiteClient extends Closeable {
 				throw new IllegalStateException("Must specify either Port Name or Port Identifier to builder Site-to-Site client");
 			}
 			
-			return new SocketClient(this);
+			final SiteToSiteClientConfig config = new SiteToSiteClientConfig() {
+				
+				@Override
+				public boolean isUseCompression() {
+					return Builder.this.isUseCompression();
+				}
+				
+				@Override
+				public String getUrl() {
+					return Builder.this.getUrl();
+				}
+				
+				@Override
+				public long getTimeout(final TimeUnit timeUnit) {
+					return Builder.this.getTimeout(timeUnit);
+				}
+				
+				@Override
+				public SSLContext getSslContext() {
+					return Builder.this.getSslContext();
+				}
+				
+				@Override
+				public String getPortName() {
+					return Builder.this.getPortName();
+				}
+				
+				@Override
+				public String getPortIdentifier() {
+					return Builder.this.getPortIdentifier();
+				}
+				
+				@Override
+				public long getPenalizationPeriod(final TimeUnit timeUnit) {
+					return Builder.this.getPenalizationPeriod(timeUnit);
+				}
+				
+				@Override
+				public File getPeerPersistenceFile() {
+					return Builder.this.getPeerPersistenceFile();
+				}
+				
+				@Override
+				public EventReporter getEventReporter() {
+					return Builder.this.getEventReporter();
+				}
+			};
+			
+			return new SocketClient(config);
 		}
 
 		/**

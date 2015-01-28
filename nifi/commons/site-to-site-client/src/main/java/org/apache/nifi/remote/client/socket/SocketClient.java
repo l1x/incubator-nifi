@@ -23,6 +23,7 @@ import org.apache.nifi.remote.RemoteDestination;
 import org.apache.nifi.remote.Transaction;
 import org.apache.nifi.remote.TransferDirection;
 import org.apache.nifi.remote.client.SiteToSiteClient;
+import org.apache.nifi.remote.client.SiteToSiteClientConfig;
 import org.apache.nifi.remote.exception.HandshakeException;
 import org.apache.nifi.remote.exception.PortNotRunningException;
 import org.apache.nifi.remote.exception.ProtocolException;
@@ -37,14 +38,14 @@ public class SocketClient implements SiteToSiteClient {
 	private final long penalizationNanos;
 	private volatile String portIdentifier;
 	
-	public SocketClient(final Builder builder) {
-		pool = new EndpointConnectionStatePool(builder.getUrl(), (int) builder.getTimeout(TimeUnit.MILLISECONDS), 
-				builder.getSslContext(), builder.getEventReporter(), builder.getPeerPersistenceFile());
+	public SocketClient(final SiteToSiteClientConfig config) {
+		pool = new EndpointConnectionStatePool(config.getUrl(), (int) config.getTimeout(TimeUnit.MILLISECONDS), 
+				config.getSslContext(), config.getEventReporter(), config.getPeerPersistenceFile());
 		
-		this.compress = builder.isUseCompression();
-		this.portIdentifier = builder.getPortIdentifier();
-		this.portName = builder.getPortName();
-		this.penalizationNanos = builder.getPenalizationPeriod(TimeUnit.NANOSECONDS);
+		this.compress = config.isUseCompression();
+		this.portIdentifier = config.getPortIdentifier();
+		this.portName = config.getPortName();
+		this.penalizationNanos = config.getPenalizationPeriod(TimeUnit.NANOSECONDS);
 	}
 	
 	
