@@ -63,6 +63,7 @@ import org.apache.nifi.remote.PeerStatus;
 import org.apache.nifi.remote.RemoteDestination;
 import org.apache.nifi.remote.RemoteResourceInitiator;
 import org.apache.nifi.remote.TransferDirection;
+import org.apache.nifi.remote.client.SiteToSiteClientConfig;
 import org.apache.nifi.remote.cluster.ClusterNodeInformation;
 import org.apache.nifi.remote.cluster.NodeInformation;
 import org.apache.nifi.remote.codec.FlowFileCodec;
@@ -186,7 +187,14 @@ public class EndpointConnectionStatePool {
     	}, 5, 5, TimeUnit.SECONDS);
     }
     
+    
     public EndpointConnectionState getEndpointConnectionState(final RemoteDestination remoteDestination, final TransferDirection direction) throws IOException, HandshakeException, PortNotRunningException, UnknownPortException, ProtocolException {
+        return getEndpointConnectionState(remoteDestination, direction, null);
+    }
+    
+    
+    
+    public EndpointConnectionState getEndpointConnectionState(final RemoteDestination remoteDestination, final TransferDirection direction, final SiteToSiteClientConfig config) throws IOException, HandshakeException, PortNotRunningException, UnknownPortException, ProtocolException {
     	//
         // Attempt to get a connection state that already exists for this URL.
         //
@@ -229,6 +237,14 @@ public class EndpointConnectionStatePool {
                 
                 final String peerUrl = "nifi://" + peerStatus.getHostname() + ":" + peerStatus.getPort();
                 peer = new Peer(commsSession, peerUrl, clusterUrl.toString());
+
+                // set properties based on config
+                if ( config != null ) {
+                    protocol.setTimeout((int) config.getTimeout(TimeUnit.MILLISECONDS));
+                    protocol.setPreferredBatchCount(config.getPreferredBatchCount());
+                    protocol.setPreferredBatchSize(config.getPreferredBatchSize());
+                    protocol.setPreferredBatchDuration(config.getPreferredBatchDuration(TimeUnit.MILLISECONDS));
+                }
                 
                 // perform handshake
                 try {

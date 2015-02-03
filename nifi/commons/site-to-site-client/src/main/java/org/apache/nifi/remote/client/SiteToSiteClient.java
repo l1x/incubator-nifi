@@ -27,6 +27,7 @@ import org.apache.nifi.events.EventReporter;
 import org.apache.nifi.remote.Transaction;
 import org.apache.nifi.remote.TransferDirection;
 import org.apache.nifi.remote.client.socket.SocketClient;
+import org.apache.nifi.remote.protocol.DataPacket;
 
 /**
  * <p>
@@ -113,6 +114,9 @@ public interface SiteToSiteClient extends Closeable {
 		private boolean useCompression;
 		private String portName;
 		private String portIdentifier;
+		private int batchCount;
+		private long batchSize;
+		private long batchNanos;
 
 		/**
 		 * Specifies the URL of the remote NiFi instance. If this URL points to the Cluster Manager of
@@ -238,6 +242,43 @@ public interface SiteToSiteClient extends Closeable {
 		}
 		
 		/**
+	     * When pulling data from a NiFi instance, the sender chooses how large a Transaction is. However,
+	     * the client has the ability to request a particular batch size/duration. This method specifies
+	     * the preferred number of {@link DataPacket}s to include in a Transaction.
+	     * 
+	     * @return
+	     */
+		public Builder requestBatchCount(final int count) {
+		    this.batchCount = count;
+		    return this;
+		}
+
+		/**
+	     * When pulling data from a NiFi instance, the sender chooses how large a Transaction is. However,
+	     * the client has the ability to request a particular batch size/duration. This method specifies
+	     * the preferred number of bytes to include in a Transaction.
+	     * 
+	     * @return
+	     */
+		public Builder requestBatchSize(final long bytes) {
+		    this.batchSize = bytes;
+		    return this;
+		}
+		
+        /**
+         * When pulling data from a NiFi instance, the sender chooses how large a Transaction is. However,
+         * the client has the ability to request a particular batch size/duration. This method specifies
+         * the preferred amount of time that a Transaction should span.
+         * 
+         * @return
+         */
+		public Builder requestBatchDuration(final long value, final TimeUnit unit) {
+		    this.batchNanos = unit.toNanos(value);
+		    return this;
+		}
+		
+		
+		/**
 		 * Builds a new SiteToSiteClient that can be used to send and receive data with remote instances of NiFi
 		 * @return
 		 */
@@ -296,6 +337,21 @@ public interface SiteToSiteClient extends Closeable {
 				public EventReporter getEventReporter() {
 					return Builder.this.getEventReporter();
 				}
+
+		        @Override
+		        public long getPreferredBatchDuration(final TimeUnit timeUnit) {
+		            return timeUnit.convert(Builder.this.batchNanos, TimeUnit.NANOSECONDS);
+		        }
+		        
+		        @Override
+		        public long getPreferredBatchSize() {
+		            return Builder.this.batchSize;
+		        }
+		        
+		        @Override
+		        public int getPreferredBatchCount() {
+		            return Builder.this.batchCount;
+		        }
 			};
 			
 			return new SocketClient(config);

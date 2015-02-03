@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 
 import org.apache.nifi.events.EventReporter;
+import org.apache.nifi.remote.protocol.DataPacket;
 
 public interface SiteToSiteClientConfig {
 
@@ -81,4 +82,33 @@ public interface SiteToSiteClientConfig {
 	 * @return
 	 */
 	String getPortIdentifier();
+	
+	/**
+	 * When pulling data from a NiFi instance, the sender chooses how large a Transaction is. However,
+	 * the client has the ability to request a particular batch size/duration. This returns the maximum
+	 * amount of time that we will request a NiFi instance to send data to us in a Transaction.
+	 * 
+	 * @param timeUnit
+	 * @return
+	 */
+	long getPreferredBatchDuration(TimeUnit timeUnit);
+	
+    /**
+     * When pulling data from a NiFi instance, the sender chooses how large a Transaction is. However,
+     * the client has the ability to request a particular batch size/duration. This returns the maximum
+     * number of bytes that we will request a NiFi instance to send data to us in a Transaction.
+     * 
+     * @return
+     */
+	long getPreferredBatchSize();
+	
+	
+	/**
+     * When pulling data from a NiFi instance, the sender chooses how large a Transaction is. However,
+     * the client has the ability to request a particular batch size/duration. This returns the maximum
+     * number of {@link DataPacket}s that we will request a NiFi instance to send data to us in a Transaction.
+     * 
+     * @return
+     */
+	int getPreferredBatchCount();
 }
