@@ -16,6 +16,7 @@
  */
 package org.apache.nifi.remote;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,11 +33,13 @@ import org.apache.nifi.components.ValidationResult;
 import org.apache.nifi.connectable.ConnectableType;
 import org.apache.nifi.connectable.Connection;
 import org.apache.nifi.controller.ProcessScheduler;
+import org.apache.nifi.events.EventReporter;
 import org.apache.nifi.groups.ProcessGroup;
 import org.apache.nifi.groups.RemoteProcessGroup;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
+import org.apache.nifi.remote.client.SiteToSiteClientConfig;
 import org.apache.nifi.remote.client.socket.EndpointConnectionState;
 import org.apache.nifi.remote.client.socket.EndpointConnectionStatePool;
 import org.apache.nifi.remote.codec.FlowFileCodec;
@@ -142,7 +145,74 @@ public class StandardRemoteGroupPort extends RemoteGroupPort {
         
         final EndpointConnectionState connectionState;
         try {
-        	connectionState = connectionStatePool.getEndpointConnectionState(this, transferDirection);
+            // TODO: TESTING ONLY!! REMOVE!!
+            final SiteToSiteClientConfig config = new SiteToSiteClientConfig() {
+                @Override
+                public boolean isUseCompression() {
+                    return false;
+                }
+                
+                @Override
+                public String getUrl() {
+                    return null;
+                }
+                
+                @Override
+                public long getTimeout(TimeUnit timeUnit) {
+                    return timeUnit.convert(1, TimeUnit.SECONDS);
+                }
+                
+                @Override
+                public SSLContext getSslContext() {
+                    return null;
+                }
+                
+                @Override
+                public long getPreferredBatchSize() {
+                    return 1024 * 1024L;
+                }
+                
+                @Override
+                public long getPreferredBatchDuration(TimeUnit timeUnit) {
+                    return timeUnit.convert(1, TimeUnit.SECONDS);
+                }
+                
+                @Override
+                public int getPreferredBatchCount() {
+                    return 1;
+                }
+                
+                @Override
+                public String getPortName() {
+                    // TODO Auto-generated method stub
+                    return null;
+                }
+                
+                @Override
+                public String getPortIdentifier() {
+                    // TODO Auto-generated method stub
+                    return null;
+                }
+                
+                @Override
+                public long getPenalizationPeriod(TimeUnit timeUnit) {
+                    // TODO Auto-generated method stub
+                    return 0;
+                }
+                
+                @Override
+                public File getPeerPersistenceFile() {
+                    // TODO Auto-generated method stub
+                    return null;
+                }
+                
+                @Override
+                public EventReporter getEventReporter() {
+                    // TODO Auto-generated method stub
+                    return null;
+                }
+            };
+        	connectionState = connectionStatePool.getEndpointConnectionState(this, transferDirection, config);
         } catch (final PortNotRunningException e) {
             context.yield();
             this.targetRunning.set(false);

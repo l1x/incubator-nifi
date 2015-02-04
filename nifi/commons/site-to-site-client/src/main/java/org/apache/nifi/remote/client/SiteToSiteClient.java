@@ -98,6 +98,14 @@ public interface SiteToSiteClient extends Closeable {
 	
 	/**
 	 * <p>
+	 * Returns the configuration object that was built by the Builder
+	 * </p>
+	 * @return
+	 */
+	SiteToSiteClientConfig getConfig();
+	
+	/**
+	 * <p>
 	 * The Builder is the mechanism by which all configuration is passed to the SiteToSiteClient.
 	 * Once constructed, the SiteToSiteClient cannot be reconfigured (i.e., it is immutable). If
 	 * a change in configuration should be desired, the client should be {@link Closeable#close() closed}

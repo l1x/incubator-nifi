@@ -32,6 +32,7 @@ import org.apache.nifi.remote.protocol.DataPacket;
 import org.apache.nifi.util.ObjectHolder;
 
 public class SocketClient implements SiteToSiteClient {
+    private final SiteToSiteClientConfig config;
 	private final EndpointConnectionStatePool pool;
 	private final boolean compress;
 	private final String portName;
@@ -42,12 +43,17 @@ public class SocketClient implements SiteToSiteClient {
 		pool = new EndpointConnectionStatePool(config.getUrl(), (int) config.getTimeout(TimeUnit.MILLISECONDS), 
 				config.getSslContext(), config.getEventReporter(), config.getPeerPersistenceFile());
 		
+		this.config = config;
 		this.compress = config.isUseCompression();
 		this.portIdentifier = config.getPortIdentifier();
 		this.portName = config.getPortName();
 		this.penalizationNanos = config.getPenalizationPeriod(TimeUnit.NANOSECONDS);
 	}
 	
+	@Override
+	public SiteToSiteClientConfig getConfig() {
+	    return config;
+	}
 	
 	@Override
 	public boolean isSecure() throws IOException {
